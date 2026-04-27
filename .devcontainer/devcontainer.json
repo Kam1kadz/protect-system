@@ -1,0 +1,37 @@
+{
+  "name": "KMGuard Dev",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-22.04",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "latest",
+      "dockerDashComposeVersion": "v2"
+    },
+    "ghcr.io/devcontainers/features/go:1": {
+      "version": "1.23"
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "22"
+    }
+  },
+  "forwardPorts": [3000, 8080, 8081, 9001],
+  "portsAttributes": {
+    "3000": { "label": "Next.js Site",  "onAutoForward": "openBrowser" },
+    "8080": { "label": "Public API",    "onAutoForward": "notify" },
+    "8081": { "label": "Admin API",     "onAutoForward": "notify" },
+    "9001": { "label": "MinIO Console", "onAutoForward": "notify" }
+  },
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "remoteUser": "vscode",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go",
+        "ms-vscode.vscode-typescript-next",
+        "bradlc.vscode-tailwindcss",
+        "mtxr.sqltools",
+        "mtxr.sqltools-driver-pg",
+        "humao.rest-client"
+      ]
+    }
+  }
+}

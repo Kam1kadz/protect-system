@@ -1,0 +1,3 @@
+ALTER TABLE {{SCHEMA}}.licenses
+    ADD COLUMN IF NOT EXISTS license_key TEXT UNIQUE,
+    ADD COLUMN IF NOT EXISTS secret_key  TEXT;

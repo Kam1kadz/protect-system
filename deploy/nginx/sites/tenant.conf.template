@@ -1,0 +1,102 @@
+# Replace DOMAIN with your actual domain before use
+# cp tenant.conf.template yourdomain.com.conf
+# sed -i 's/DOMAIN/yourdomain.com/g' yourdomain.com.conf
+
+# ── HTTP → HTTPS redirect ─────────────────────────────────────────────────────
+server {
+    listen 80;
+    server_name DOMAIN www.DOMAIN;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+# ── HTTPS site ────────────────────────────────────────────────────────────────
+server {
+    listen 443 ssl http2;
+    server_name DOMAIN www.DOMAIN;
+
+    ssl_certificate     /etc/letsencrypt/live/DOMAIN/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/DOMAIN/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache   shared:SSL:10m;
+    ssl_session_timeout 1d;
+
+    client_max_body_size 256m;
+
+    # ── API ───────────────────────────────────────────────────────────────────
+    location /api/ {
+        limit_req zone=api burst=30 nodelay;
+        limit_conn conn 20;
+
+        proxy_pass         http://public_api;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_set_header   Connection        "";
+        proxy_read_timeout 60s;
+    }
+
+    # ── Auth endpoints — stricter limit ───────────────────────────────────────
+    location /api/v1/auth/ {
+        limit_req zone=auth burst=5 nodelay;
+        limit_conn conn 10;
+
+        proxy_pass         http://public_api;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_set_header   Connection        "";
+    }
+
+    # ── Next.js site ──────────────────────────────────────────────────────────
+    location / {
+        proxy_pass         http://site;
+        proxy_http_version 1.1;
+        proxy_set_header   Upgrade     $http_upgrade;
+        proxy_set_header   Connection  "upgrade";
+        proxy_set_header   Host        $host;
+        proxy_set_header   X-Real-IP   $remote_addr;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # ── Static Next.js assets — long cache ───────────────────────────────────
+    location /_next/static/ {
+        proxy_pass http://site;
+        proxy_cache_valid 200 365d;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+    }
+}
+
+# ── Admin API — только с whitelist IP ─────────────────────────────────────────
+server {
+    listen 443 ssl http2;
+    server_name admin-api.DOMAIN;
+
+    ssl_certificate     /etc/letsencrypt/live/DOMAIN/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/DOMAIN/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+
+    # Разрешить только твои IP
+    allow 1.2.3.4;       # замени на свой IP
+    deny  all;
+
+    location / {
+        proxy_pass         http://admin:8081;
+        proxy_http_version 1.1;
+        proxy_set_header   Host            $host;
+        proxy_set_header   X-Real-IP       $remote_addr;
+        proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}

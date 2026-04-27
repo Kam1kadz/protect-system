@@ -1,0 +1,191 @@
+package public
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/ps/backend/internal/crypto"
+	"github.com/ps/backend/internal/middleware"
+)
+
+type StoreHandler struct {
+	db *pgxpool.Pool
+}
+
+func NewStoreHandler(db *pgxpool.Pool) *StoreHandler {
+	return &StoreHandler{db: db}
+}
+
+// GET /api/v1/store/promo/:code
+// Валидация промокода — показываем скидку до покупки
+func (h *StoreHandler) ValidatePromo(c *fiber.Ctx) error {
+	schema := c.Locals(middleware.SchemaKey()).(string)
+	s, _   := safeSchema(schema)
+	code   := c.Params("code")
+
+	var id          string
+	var discountPct int
+	var partnerPct  int
+	var usesMax     *int
+	var usesTotal   int
+	var expiresAt   *time.Time
+
+	err := h.db.QueryRow(c.Context(), fmt.Sprintf(
+		`SELECT id, discount_pct, partner_pct, uses_max, uses_total, expires_at
+		 FROM %s.promo_codes
+		 WHERE code = $1 AND is_active = true`, s),
+		code,
+	).Scan(&id, &discountPct, &partnerPct, &usesMax, &usesTotal, &expiresAt)
+
+	if err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "promo code not found or inactive"})
+	}
+
+	if expiresAt != nil && time.Now().After(*expiresAt) {
+		return c.Status(400).JSON(fiber.Map{"error": "promo code expired"})
+	}
+
+	if usesMax != nil && usesTotal >= *usesMax {
+		return c.Status(400).JSON(fiber.Map{"error": "promo code usage limit reached"})
+	}
+
+	return c.JSON(fiber.Map{
+		"valid":        true,
+		"discount_pct": discountPct,
+		"partner_pct":  partnerPct,
+	})
+}
+
+// POST /api/v1/store/activate
+// Ручная активация — пользователь вводит ключ
+func (h *StoreHandler) Activate(c *fiber.Ctx) error {
+	schema := c.Locals(middleware.SchemaKey()).(string)
+	s, _   := safeSchema(schema)
+	userID := c.Locals("user_id").(string)
+
+	var body struct {
+		Key       string `json:"key"`
+		PromoCode string `json:"promo_code"`
+	}
+	if err := c.BodyParser(&body); err != nil || body.Key == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "key required"})
+	}
+
+	// ── 1. Найти ключ ─────────────────────────────────────────────────────────
+	var keyID, planID string
+	var tierID *string
+	var isUsed bool
+
+	err := h.db.QueryRow(c.Context(), fmt.Sprintf(
+		`SELECT id, plan_id, tier_id, is_used
+		 FROM %s.loader_keys WHERE key_value = $1`, s),
+		body.Key,
+	).Scan(&keyID, &planID, &tierID, &isUsed)
+
+	if err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "invalid key"})
+	}
+	if isUsed {
+		return c.Status(400).JSON(fiber.Map{"error": "key already used"})
+	}
+
+	// ── 2. Определить длительность из tier ───────────────────────────────────
+	durationDays := 30 // дефолт
+	if tierID != nil {
+		_ = h.db.QueryRow(c.Context(), fmt.Sprintf(
+			`SELECT duration_days FROM %s.plan_tiers WHERE id = $1`, s),
+			*tierID,
+		).Scan(&durationDays)
+	}
+
+	// ── 3. Применить промокод если есть ───────────────────────────────────────
+	var promoID *string
+	if body.PromoCode != "" {
+		var pid, partnerUserID string
+		var partnerPct int
+		var usesMax *int
+		var usesTotal int
+		var expiresAt *time.Time
+
+		err := h.db.QueryRow(c.Context(), fmt.Sprintf(
+			`SELECT id, COALESCE(partner_id::text,''), partner_pct,
+			        uses_max, uses_total, expires_at
+			 FROM %s.promo_codes
+			 WHERE code = $1 AND is_active = true`, s),
+			body.PromoCode,
+		).Scan(&pid, &partnerUserID, &partnerPct, &usesMax, &usesTotal, &expiresAt)
+
+		if err == nil &&
+			(expiresAt == nil || time.Now().Before(*expiresAt)) &&
+			(usesMax == nil || usesTotal < *usesMax) {
+
+			promoID = &pid
+
+			// Начислить % партнёру если цена известна
+			if partnerPct > 0 && partnerUserID != "" && tierID != nil {
+				var price float64
+				_ = h.db.QueryRow(c.Context(), fmt.Sprintf(
+					`SELECT price FROM %s.plan_tiers WHERE id = $1`, s), *tierID,
+				).Scan(&price)
+
+				if price > 0 {
+					earning := price * float64(partnerPct) / 100
+					_, _ = h.db.Exec(c.Context(), fmt.Sprintf(
+						`INSERT INTO %s.partner_earnings
+						 (partner_id, promo_id, amount, currency)
+						 VALUES ($1, $2, $3, 'USD')`, s),
+						partnerUserID, pid, earning)
+				}
+			}
+
+			// Инкрементировать uses_total
+			_, _ = h.db.Exec(c.Context(), fmt.Sprintf(
+				`UPDATE %s.promo_codes SET uses_total = uses_total + 1 WHERE id = $1`, s), pid)
+		}
+	}
+
+	// ── 4. Создать лицензию ───────────────────────────────────────────────────
+	licKey, _  := crypto.RandomHex(16)
+	secretKey, _ := crypto.RandomHex(32)
+	expiresAt := time.Now().AddDate(0, 0, durationDays)
+
+	var licenseID string
+	err = h.db.QueryRow(c.Context(), fmt.Sprintf(
+		`INSERT INTO %s.licenses
+		 (user_id, plan_id, tier_id, license_key, secret_key, expires_at)
+		 VALUES ($1, $2, $3, $4, $5, $6)
+		 RETURNING id`, s),
+		userID, planID, tierID, licKey, secretKey, expiresAt,
+	).Scan(&licenseID)
+
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "failed to create license"})
+	}
+
+	// ── 5. Отметить ключ как использованный ──────────────────────────────────
+	_, _ = h.db.Exec(c.Context(), fmt.Sprintf(
+		`UPDATE %s.loader_keys
+		 SET is_used = true, used_by = $1, used_at = NOW()
+		 WHERE id = $2`, s),
+		userID, keyID)
+
+	// ── 6. Аудит ──────────────────────────────────────────────────────────────
+	_, _ = h.db.Exec(c.Context(), fmt.Sprintf(
+		`INSERT INTO %s.audit_log (user_id, event_type, severity, ip_address, payload)
+		 VALUES ($1, 'key_activated', 'info', $2, $3)`, s),
+		userID,
+		c.IP(),
+		fmt.Sprintf(`{"license_id":"%s","plan_id":"%s","promo_id":"%v"}`,
+			licenseID, planID, promoID),
+	)
+
+	return c.Status(201).JSON(fiber.Map{
+		"license_id":  licenseID,
+		"license_key": licKey,
+		"expires_at":  expiresAt.Format(time.RFC3339),
+		"plan_id":     planID,
+	})
+}
