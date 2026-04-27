@@ -1,15 +1,15 @@
 'use client'
 import Link from 'next/link'
+import { usePathname, useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/auth'
 import { Button } from '@/components/ui/button'
 import { authApi } from '@/lib/api'
-import { useRouter } from 'next/navigation'
-
-const SITE_NAME = process.env.NEXT_PUBLIC_SITE_NAME ?? 'KMGuard'
+import { ShieldCheck, Store, User, LayoutDashboard, LogOut } from 'lucide-react'
 
 export function Navbar() {
     const { user, clear } = useAuthStore()
-    const router = useRouter()
+    const router  = useRouter()
+    const path    = usePathname()
 
     async function logout() {
         await authApi.logout().catch(() => {})
@@ -17,36 +17,50 @@ export function Navbar() {
         router.push('/auth/login')
     }
 
+    const link = (href: string, label: string, icon: React.ReactNode) => (
+        <Link
+            key={href}
+            href={href}
+            className={`flex items-center gap-1.5 text-sm transition-colors ${
+                path === href ? 'text-[--text]' : 'text-[--muted] hover:text-[--text]'
+            }`}
+        >
+            {icon}{label}
+        </Link>
+    )
+
     return (
-        <nav className="sticky top-0 z-50 border-b border-[--border] bg-[#0d0d0f]/80 backdrop-blur">
+        <nav className="sticky top-0 z-50 border-b border-[--border] bg-[--bg]/80 backdrop-blur-md">
             <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
-                <Link href="/" className="text-lg font-bold text-white">
-                    {SITE_NAME}
+
+                {/* Logo */}
+                <Link href="/kmguard" className="flex items-center gap-2 group">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[--accent]/15 group-hover:bg-[--accent]/25 transition-colors">
+                        <ShieldCheck size={15} className="text-[--accent]" />
+                    </div>
+                    <span className="font-bold text-sm tracking-wide">Arbuz Client</span>
                 </Link>
 
+                {/* Nav links */}
+                <div className="hidden sm:flex items-center gap-5">
+                    {link('/kmguard/store', 'Store', <Store size={14}/>)}
+                    {user && link('/kmguard/profile', user.username, <User size={14}/>)}
+                    {user && ['admin','support'].includes(user.role) && link('/admin', 'Admin', <LayoutDashboard size={14}/>)}
+                </div>
+
+                {/* Auth */}
                 <div className="flex items-center gap-2">
                     {user ? (
-                        <>
-                            <Link href="/store">
-                                <Button variant="ghost" size="sm">Store</Button>
-                            </Link>
-                            <Link href="/profile">
-                                <Button variant="ghost" size="sm">{user.username}</Button>
-                            </Link>
-                            {['admin', 'support'].includes(user.role) && (
-                                <Link href="/admin">
-                                    <Button variant="secondary" size="sm">Admin</Button>
-                                </Link>
-                            )}
-                            <Button variant="ghost" size="sm" onClick={logout}>Logout</Button>
-                        </>
+                        <Button variant="ghost" size="sm" onClick={logout}>
+                            <LogOut size={14}/> Logout
+                        </Button>
                     ) : (
                         <>
-                            <Link href="/store">
-                                <Button variant="ghost" size="sm">Store</Button>
-                            </Link>
                             <Link href="/auth/login">
-                                <Button size="sm">Login</Button>
+                                <Button variant="ghost" size="sm">Login</Button>
+                            </Link>
+                            <Link href="/auth/register">
+                                <Button size="sm">Sign Up</Button>
                             </Link>
                         </>
                     )}

@@ -1,38 +1,20 @@
-import { cn } from '@/lib/utils'
-
-const colors: Record<string, string> = {
-    active:   'bg-emerald-500/15 text-emerald-400',
-    expired:  'bg-zinc-500/15    text-zinc-400',
-    banned:   'bg-red-500/15     text-red-400',
-    paused:   'bg-yellow-500/15  text-yellow-400',
-    admin:    'bg-violet-500/15  text-violet-400',
-    support:  'bg-blue-500/15    text-blue-400',
-    partner:  'bg-amber-500/15   text-amber-400',
-    user:     'bg-zinc-500/15    text-zinc-400',
-    critical: 'bg-red-500/15     text-red-400',
-    warn:     'bg-yellow-500/15  text-yellow-400',
-    info:     'bg-blue-500/15    text-blue-400',
-    completed:'bg-emerald-500/15 text-emerald-400',
-    pending:  'bg-yellow-500/15  text-yellow-400',
-    failed:   'bg-red-500/15     text-red-400',
+const map: Record<string, string> = {
+    active:    'bg-green-500/15 text-green-400 border-green-500/25',
+    expired:   'bg-zinc-500/15 text-zinc-400 border-zinc-500/25',
+    revoked:   'bg-red-500/15 text-red-400 border-red-500/25',
+    banned:    'bg-red-500/15 text-red-400 border-red-500/25',
+    suspended: 'bg-orange-500/15 text-orange-400 border-orange-500/25',
+    admin:     'bg-purple-500/15 text-purple-400 border-purple-500/25',
+    support:   'bg-blue-500/15 text-blue-400 border-blue-500/25',
+    partner:   'bg-yellow-500/15 text-yellow-400 border-yellow-500/25',
+    user:      'bg-zinc-500/15 text-zinc-400 border-zinc-500/25',
 }
 
-export function Badge({
-                          value,
-                          className,
-                      }: {
-    value: string
-    className?: string
-}) {
+export function Badge({ value }: { value: string }) {
+    const cls = map[value?.toLowerCase()] ?? 'bg-zinc-500/15 text-zinc-400 border-zinc-500/25'
     return (
-        <span
-            className={cn(
-                'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
-                colors[value] ?? 'bg-zinc-500/15 text-zinc-400',
-                className,
-            )}
-        >
-      {value}
-    </span>
+        <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${cls}`}>
+            {value}
+        </span>
     )
 }
