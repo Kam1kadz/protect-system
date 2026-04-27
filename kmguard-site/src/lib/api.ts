@@ -1,11 +1,14 @@
 import axios, { AxiosInstance } from 'axios'
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080'
+const BASE      = process.env.NEXT_PUBLIC_API_URL  ?? 'http://localhost:8080'
+const TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID ?? ''
 
 function createClient(): AxiosInstance {
     const client = axios.create({ baseURL: BASE, withCredentials: true })
 
     client.interceptors.request.use(cfg => {
+        if (TENANT_ID) cfg.headers['X-Tenant-ID'] = TENANT_ID
+
         if (typeof window !== 'undefined') {
             const token = sessionStorage.getItem('access_token')
             if (token) cfg.headers['Authorization'] = `Bearer ${token}`
@@ -23,7 +26,10 @@ function createClient(): AxiosInstance {
                     const res = await axios.post(
                         `${BASE}/api/v1/auth/refresh`,
                         {},
-                        { withCredentials: true },
+                        {
+                            withCredentials: true,
+                            headers: TENANT_ID ? { 'X-Tenant-ID': TENANT_ID } : {},
+                        },
                     )
                     const token = res.data.access_token
                     sessionStorage.setItem('access_token', token)
@@ -45,7 +51,7 @@ function createClient(): AxiosInstance {
 
 export const api = createClient()
 
-// ── Auth ──────────────────────────────────────────────────────────────────────
+// ── Auth ────────────────────────────────────────────────────────────────────────────
 
 export const authApi = {
     login: (email: string, password: string) =>
@@ -64,17 +70,15 @@ export const authApi = {
         api.post('/api/v1/auth/refresh'),
 }
 
-// ── Admin ─────────────────────────────────────────────────────────────────────
+// ── Admin ─────────────────────────────────────────────────────────────────────────
 
 export const adminApi = {
-    // Dashboard
     stats: () =>
         api.get('/api/v1/admin/stats'),
 
     config: () =>
         api.get('/api/v1/admin/config'),
 
-    // Users
     users: (page = 1, q = '') =>
         api.get(`/api/v1/admin/users?page=${page}&q=${encodeURIComponent(q)}`),
 
@@ -96,14 +100,12 @@ export const adminApi = {
         expires_at: string
     }) => api.post(`/api/v1/admin/users/${id}/subscription`, data),
 
-    // Licenses
     licenses: (page = 1) =>
         api.get(`/api/v1/admin/licenses?page=${page}`),
 
     revokeLic: (id: string) =>
         api.delete(`/api/v1/admin/licenses/${id}`),
 
-    // Loader keys
     keys: () =>
         api.get('/api/v1/admin/keys'),
 
@@ -116,7 +118,6 @@ export const adminApi = {
     deleteKey: (id: string) =>
         api.delete(`/api/v1/admin/keys/${id}`),
 
-    // Promo codes
     promos: () =>
         api.get('/api/v1/admin/promo'),
 
@@ -132,7 +133,6 @@ export const adminApi = {
     deletePromo: (id: string) =>
         api.delete(`/api/v1/admin/promo/${id}`),
 
-    // JAR Payload
     uploadPayload: (planId: string, file: File, mcVersion: string) => {
         const form = new FormData()
         form.append('jar', file)
@@ -149,30 +149,24 @@ export const adminApi = {
     deletePayload: (planId: string, mcVersion: string) =>
         api.delete(`/api/v1/admin/payload/${planId}?mc_version=${mcVersion}`),
 
-    // Anti-cheat events
     events: () =>
         api.get('/api/v1/admin/events'),
 
-    // Transactions
     transactions: () =>
         api.get('/api/v1/admin/transactions'),
 
-    // Partner earnings
     earnings: () =>
         api.get('/api/v1/admin/earnings'),
 
     markPaid: (id: string) =>
         api.post(`/api/v1/admin/earnings/${id}/pay`),
 
-    // Audit logs
     logs: () =>
         api.get('/api/v1/admin/logs'),
 
-    // Maintenance
     setMaintenance: (enabled: boolean, message: string) =>
         api.post('/api/v1/admin/maintenance', { enabled, message }),
 
-    // Roles
     roles: () =>
         api.get('/api/v1/admin/roles'),
 
@@ -182,7 +176,7 @@ export const adminApi = {
     }) => api.post('/api/v1/admin/roles', data),
 }
 
-// ── Store (public) ────────────────────────────────────────────────────────────
+// ── Store (public) ──────────────────────────────────────────────────────────────
 
 export const storeApi = {
     plans: () =>
@@ -198,7 +192,7 @@ export const storeApi = {
         api.get(`/api/v1/store/promo/${encodeURIComponent(code)}`),
 }
 
-// ── Profile (public) ──────────────────────────────────────────────────────────
+// ── Profile (public) ───────────────────────────────────────────────────────────
 
 export const profileApi = {
     licenses: () =>
