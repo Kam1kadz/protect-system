@@ -3,14 +3,14 @@ import { persist } from 'zustand/middleware'
 import type { AuthUser } from '@/types'
 
 interface AuthState {
-    user:       AuthUser | null
-    accessToken:string | null
-    setUser:    (user: AuthUser) => void
-    setToken:   (token: string) => void
-    clear:      () => void
-    isAdmin:    () => boolean
-    isSupport:  () => boolean
-    isPartner:  () => boolean
+    user:        AuthUser | null
+    accessToken: string | null
+    setUser:     (user: AuthUser) => void
+    setToken:    (token: string) => void
+    clear:       () => void
+    isAdmin:     () => boolean
+    isSupport:   () => boolean
+    isPartner:   () => boolean
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -20,15 +20,9 @@ export const useAuthStore = create<AuthState>()(
             accessToken: null,
 
             setUser:  (user)  => set({ user }),
-            setToken: (token) => {
-                set({ accessToken: token })
-                if (typeof window !== 'undefined')
-                    sessionStorage.setItem('access_token', token)
-            },
+            setToken: (token) => set({ accessToken: token }),
             clear: () => {
                 set({ user: null, accessToken: null })
-                if (typeof window !== 'undefined')
-                    sessionStorage.removeItem('access_token')
             },
 
             isAdmin:   () => get().user?.role === 'admin',
@@ -36,8 +30,8 @@ export const useAuthStore = create<AuthState>()(
             isPartner: () => get().user?.role === 'partner',
         }),
         {
-            name:    'kmg-auth',
-            partialize: (s) => ({ user: s.user }),
+            name:       'kmg-auth',
+            partialize: (s) => ({ user: s.user, accessToken: s.accessToken }),
         },
     ),
 )
