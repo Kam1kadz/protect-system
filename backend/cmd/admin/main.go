@@ -57,19 +57,23 @@ func main() {
 			return c.Status(400).JSON(fiber.Map{"error": "bad request"})
 		}
 
-		if err := db.RunTenantMigrations(cfg.DatabaseURL, body.Slug); err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": "migration failed: " + err.Error()})
+		// Создаём схему и таблицы тенанта
+		if err := db.ProvisionTenant(c.Context(), pool, body.Slug); err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "provision failed: " + err.Error()})
 		}
 
 		tenant, err := tenantRepo.Create(c.Context(), body.Slug, body.DisplayName, body.OwnerEmail, body.SigningKeyEnc, body.CertPin)
 		if err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": "create failed"})
+			return c.Status(500).JSON(fiber.Map{"error": "create failed: " + err.Error()})
 		}
 		return c.Status(201).JSON(tenant)
 	})
 
 	v1.Delete("/tenants/:slug", func(c *fiber.Ctx) error {
 		slug := c.Params("slug")
+		if err := db.DeprovisionTenant(c.Context(), pool, slug); err != nil {
+			log.Printf("deprovision warn: %v", err)
+		}
 		if err := tenantRepo.Delete(c.Context(), slug); err != nil {
 			return c.Status(500).JSON(fiber.Map{"error": "delete failed"})
 		}
