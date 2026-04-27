@@ -11,6 +11,7 @@ import (
 	"github.com/ps/backend/config"
 	"github.com/ps/backend/internal/db"
 	"github.com/ps/backend/internal/middleware"
+	"github.com/ps/backend/internal/model"
 	"github.com/ps/backend/internal/repo"
 )
 
@@ -121,6 +122,36 @@ func main() {
 		}
 
 		return c.Status(201).JSON(fiber.Map{"plan_id": planID, "tiers": len(body.Tiers)})
+	})
+
+	// PATCH /api/superadmin/tenants/:slug/users/:username/role
+	v1.Patch("/tenants/:slug/users/:username/role", func(c *fiber.Ctx) error {
+		slug := c.Params("slug")
+		username := c.Params("username")
+		schema := "tenant_" + slug
+
+		var body struct {
+			Role string `json:"role"`
+		}
+		if err := c.BodyParser(&body); err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": "bad request"})
+		}
+
+		role := model.UserRole(body.Role)
+		if role != model.RoleUser && role != model.RoleAdmin && role != model.RoleBanned {
+			return c.Status(400).JSON(fiber.Map{"error": "invalid role, use: user | admin | banned"})
+		}
+
+		var updatedID string
+		err := pool.QueryRow(c.Context(), fmt.Sprintf(
+			`UPDATE %s.users SET role = $1 WHERE username = $2 RETURNING id`, schema),
+			string(role), username,
+		).Scan(&updatedID)
+		if err != nil {
+			return c.Status(404).JSON(fiber.Map{"error": "user not found or db error: " + err.Error()})
+		}
+
+		return c.JSON(fiber.Map{"id": updatedID, "username": username, "role": role})
 	})
 
 	v1.Get("/health", func(c *fiber.Ctx) error {
