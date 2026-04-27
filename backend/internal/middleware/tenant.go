@@ -19,7 +19,7 @@ func TenantResolver(tr *repo.TenantRepo) fiber.Handler {
 				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unknown tenant"})
 			}
 			c.Locals(ctxTenant, t)
-			c.Locals(ctxSchema, "tenant_"+t.Slug)
+			c.Locals(ctxSchema, t.Slug)
 			return c.Next()
 		}
 
@@ -30,7 +30,7 @@ func TenantResolver(tr *repo.TenantRepo) fiber.Handler {
 			t, err := tr.FindBySlug(c.Context(), parts[0])
 			if err == nil && t != nil {
 				c.Locals(ctxTenant, t)
-				c.Locals(ctxSchema, "tenant_"+t.Slug)
+				c.Locals(ctxSchema, t.Slug)
 				return c.Next()
 			}
 		}
@@ -40,7 +40,7 @@ func TenantResolver(tr *repo.TenantRepo) fiber.Handler {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unknown tenant"})
 		}
 		c.Locals(ctxTenant, t)
-		c.Locals(ctxSchema, "tenant_"+t.Slug)
+		c.Locals(ctxSchema, t.Slug)
 		return c.Next()
 	}
 }
