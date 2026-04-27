@@ -19,14 +19,14 @@ import (
 )
 
 var (
-	ErrLicenseNotFound   = errors.New("license not found")
-	ErrLicenseInactive   = errors.New("license inactive")
-	ErrLicenseExpired    = errors.New("license expired")
-	ErrHWIDMismatch      = errors.New("hwid mismatch")
-	ErrChallengeExpired  = errors.New("challenge expired or not found")
-	ErrBadResponse       = errors.New("invalid challenge response")
-	ErrNoPayload         = errors.New("payload not found for this version")
-	ErrSessionNotFound   = errors.New("session not found")
+	ErrLicenseNotFound  = errors.New("license not found")
+	ErrLicenseInactive  = errors.New("license inactive")
+	ErrLicenseExpired   = errors.New("license expired")
+	ErrHWIDMismatch     = errors.New("hwid mismatch")
+	ErrChallengeExpired = errors.New("challenge expired or not found")
+	ErrBadResponse      = errors.New("invalid challenge response")
+	ErrNoPayload        = errors.New("payload not found for this version")
+	ErrSessionNotFound  = errors.New("session not found")
 )
 
 type LoaderService struct {
@@ -58,15 +58,14 @@ type ChallengeResult struct {
 }
 
 type AuthResult struct {
-    SessionToken  string    `json:"session_token"`
-    SessionKey    string    `json:"session_key"`
-    LauncherToken string    `json:"launcher_token"`
-    ExpiresAt     time.Time `json:"expires_at"`
-    Username      string    `json:"username"`
-    PlanName      string    `json:"plan_name"`
+	SessionToken  string    `json:"session_token"`
+	SessionKey    string    `json:"session_key"`
+	LauncherToken string    `json:"launcher_token"`
+	ExpiresAt     time.Time `json:"expires_at"`
+	Username      string    `json:"username"`
+	PlanName      string    `json:"plan_name"`
 }
 
-// GenerateChallenge verifies the license exists and returns a challenge.
 func (s *LoaderService) GenerateChallenge(ctx context.Context, schema, licenseKey, hwid string) (*ChallengeResult, error) {
 	lic, err := s.licenses.FindByKey(ctx, schema, licenseKey)
 	if err != nil {
@@ -95,7 +94,6 @@ func (s *LoaderService) GenerateChallenge(ctx context.Context, schema, licenseKe
 	return &ChallengeResult{Challenge: challenge}, nil
 }
 
-// Authenticate verifies the HMAC response and creates a loader session.
 func (s *LoaderService) Authenticate(
 	ctx context.Context,
 	schema, tenantSlug, licenseKey, hwid, challenge, response, loaderVersion, mcVersion string,
@@ -167,20 +165,18 @@ func (s *LoaderService) Authenticate(
 
 	_ = s.rdb.Set(ctx, sessionRedisKey(schema, tokenHash), lic.PlanID+":"+mcVersion, exp.Sub(time.Now()))
 
-	launcherToken := LauncherTokenFor(s.cfg.MasterKey, tokenHash, tokenRaw)
+	launcherToken := launcherTokenFor(s.cfg.MasterKey, tokenHash, tokenRaw)
 
 	return &AuthResult{
-        SessionToken:  tokenRaw,
-        SessionKey:    sessionKey,
-        LauncherToken: launcherToken,
-        ExpiresAt:     exp,
-        Username:      user.Username,
-        PlanName:      plan.DisplayName,
-    }, nil
+		SessionToken:  tokenRaw,
+		SessionKey:    sessionKey,
+		LauncherToken: launcherToken,
+		ExpiresAt:     exp,
+		Username:      user.Username,
+		PlanName:      plan.DisplayName,
+	}, nil
 }
 
-// StreamPayload fetches the encrypted PSPL from MinIO,
-// transcodes it under session_key and streams it to w.
 func (s *LoaderService) StreamPayload(ctx context.Context, schema, tenantSlug, sessionToken string, w io.Writer) error {
 	tokenHash := crypto.HashSHA256Hex([]byte(sessionToken))
 
@@ -210,7 +206,6 @@ func (s *LoaderService) StreamPayload(ctx context.Context, schema, tenantSlug, s
 	return storage.Transcode(w, rc, jarKey, sessionKey)
 }
 
-// Heartbeat refreshes last_heartbeat_at in the session.
 func (s *LoaderService) Heartbeat(ctx context.Context, schema, sessionToken string) error {
 	tokenHash := crypto.HashSHA256Hex([]byte(sessionToken))
 	sess, err := s.users.FindSession(ctx, schema, tokenHash)
@@ -223,7 +218,6 @@ func (s *LoaderService) Heartbeat(ctx context.Context, schema, sessionToken stri
 	return s.users.HeartbeatSession(ctx, schema, sess.ID)
 }
 
-// Revoke marks the session as revoked.
 func (s *LoaderService) Revoke(ctx context.Context, schema, sessionToken string) error {
 	tokenHash := crypto.HashSHA256Hex([]byte(sessionToken))
 	return s.users.RevokeSession(ctx, schema, tokenHash)
@@ -232,6 +226,12 @@ func (s *LoaderService) Revoke(ctx context.Context, schema, sessionToken string)
 func computeHMAC(secretKey, data string) string {
 	mac := hmac.New(sha256.New, []byte(secretKey))
 	mac.Write([]byte(data))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+func launcherTokenFor(masterKey []byte, tokenHash, tokenRaw string) string {
+	mac := hmac.New(sha256.New, masterKey)
+	mac.Write([]byte(tokenHash + ":" + tokenRaw))
 	return hex.EncodeToString(mac.Sum(nil))
 }
 

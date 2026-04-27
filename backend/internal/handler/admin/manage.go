@@ -1,7 +1,6 @@
 package admin
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -55,18 +54,18 @@ func (h *ManageHandler) Stats(c *fiber.Ctx) error {
 
 func (h *ManageHandler) ListUsers(c *fiber.Ctx) error {
 	schema := c.Locals(middleware.SchemaKey()).(string)
-	s, _  := safeSchema(schema)
+	s, _ := safeSchema(schema)
 
-	page  := max(1, c.QueryInt("page", 1))
+	page := maxInt(1, c.QueryInt("page", 1))
 	limit := 50
 	offset := (page - 1) * limit
 
 	search := c.Query("q")
-	where  := ""
-	args   := []any{limit, offset}
+	where := ""
+	args := []any{limit, offset}
 	if search != "" {
 		where = "WHERE username ILIKE $3 OR email ILIKE $3"
-		args  = append(args, "%"+search+"%")
+		args = append(args, "%"+search+"%")
 	}
 
 	rows, err := h.db.Query(c.Context(), fmt.Sprintf(
@@ -80,25 +79,24 @@ func (h *ManageHandler) ListUsers(c *fiber.Ctx) error {
 	defer rows.Close()
 
 	type UserRow struct {
-		ID         string  `json:"id"`
-		Username   string  `json:"username"`
-		Email      string  `json:"email"`
-		Role       string  `json:"role"`
-		HWID       *string `json:"hwid"`
-		LastSeen   *string `json:"last_seen_at"`
-		CreatedAt  string  `json:"created_at"`
+		ID        string  `json:"id"`
+		Username  string  `json:"username"`
+		Email     string  `json:"email"`
+		Role      string  `json:"role"`
+		HWID      *string `json:"hwid"`
+		LastSeen  *string `json:"last_seen_at"`
+		CreatedAt string  `json:"created_at"`
 	}
 
 	var users []UserRow
 	for rows.Next() {
 		var u UserRow
-		var ls, ca time.Time
+		var ca time.Time
 		var lsPtr *time.Time
 		if err := rows.Scan(&u.ID, &u.Username, &u.Email, &u.Role,
 			&u.HWID, &lsPtr, &ca); err != nil {
 			continue
 		}
-		_ = ls
 		u.CreatedAt = ca.Format(time.RFC3339)
 		if lsPtr != nil {
 			t := lsPtr.Format(time.RFC3339)
@@ -111,7 +109,7 @@ func (h *ManageHandler) ListUsers(c *fiber.Ctx) error {
 
 func (h *ManageHandler) BanUser(c *fiber.Ctx) error {
 	schema := c.Locals(middleware.SchemaKey()).(string)
-	s, _  := safeSchema(schema)
+	s, _ := safeSchema(schema)
 	userID := c.Params("id")
 
 	_, err := h.db.Exec(c.Context(), fmt.Sprintf(
@@ -126,7 +124,7 @@ func (h *ManageHandler) BanUser(c *fiber.Ctx) error {
 
 func (h *ManageHandler) UnbanUser(c *fiber.Ctx) error {
 	schema := c.Locals(middleware.SchemaKey()).(string)
-	s, _  := safeSchema(schema)
+	s, _ := safeSchema(schema)
 	userID := c.Params("id")
 
 	_, err := h.db.Exec(c.Context(), fmt.Sprintf(
@@ -139,7 +137,7 @@ func (h *ManageHandler) UnbanUser(c *fiber.Ctx) error {
 
 func (h *ManageHandler) SetRole(c *fiber.Ctx) error {
 	schema := c.Locals(middleware.SchemaKey()).(string)
-	s, _  := safeSchema(schema)
+	s, _ := safeSchema(schema)
 	userID := c.Params("id")
 
 	var body struct {
@@ -159,7 +157,7 @@ func (h *ManageHandler) SetRole(c *fiber.Ctx) error {
 
 func (h *ManageHandler) ResetHWID(c *fiber.Ctx) error {
 	schema := c.Locals(middleware.SchemaKey()).(string)
-	s, _  := safeSchema(schema)
+	s, _ := safeSchema(schema)
 	userID := c.Params("id")
 
 	_, _ = h.db.Exec(c.Context(), fmt.Sprintf(
@@ -171,7 +169,7 @@ func (h *ManageHandler) ResetHWID(c *fiber.Ctx) error {
 
 func (h *ManageHandler) GiveSubscription(c *fiber.Ctx) error {
 	schema := c.Locals(middleware.SchemaKey()).(string)
-	s, _  := safeSchema(schema)
+	s, _ := safeSchema(schema)
 	userID := c.Params("id")
 
 	var body struct {
@@ -189,7 +187,7 @@ func (h *ManageHandler) GiveSubscription(c *fiber.Ctx) error {
 	}
 
 	licKey, _ := crypto.RandomHex(16)
-	secret, _  := crypto.RandomHex(32)
+	secret, _ := crypto.RandomHex(32)
 
 	var tierID *string
 	if body.TierID != "" {
@@ -211,10 +209,10 @@ func (h *ManageHandler) GiveSubscription(c *fiber.Ctx) error {
 
 func (h *ManageHandler) ListLicenses(c *fiber.Ctx) error {
 	schema := c.Locals(middleware.SchemaKey()).(string)
-	s, _  := safeSchema(schema)
+	s, _ := safeSchema(schema)
 
-	page   := max(1, c.QueryInt("page", 1))
-	limit  := 50
+	page := maxInt(1, c.QueryInt("page", 1))
+	limit := 50
 	offset := (page - 1) * limit
 
 	rows, err := h.db.Query(c.Context(), fmt.Sprintf(
@@ -231,13 +229,13 @@ func (h *ManageHandler) ListLicenses(c *fiber.Ctx) error {
 	defer rows.Close()
 
 	type LicRow struct {
-		ID          string `json:"id"`
-		Username    string `json:"username"`
-		PlanName    string `json:"plan_name"`
-		Status      string `json:"status"`
-		ExpiresAt   string `json:"expires_at"`
-		LicenseKey  string `json:"license_key"`
-		CreatedAt   string `json:"created_at"`
+		ID         string `json:"id"`
+		Username   string `json:"username"`
+		PlanName   string `json:"plan_name"`
+		Status     string `json:"status"`
+		ExpiresAt  string `json:"expires_at"`
+		LicenseKey string `json:"license_key"`
+		CreatedAt  string `json:"created_at"`
 	}
 
 	var list []LicRow
@@ -256,7 +254,7 @@ func (h *ManageHandler) ListLicenses(c *fiber.Ctx) error {
 
 func (h *ManageHandler) RevokeLicense(c *fiber.Ctx) error {
 	schema := c.Locals(middleware.SchemaKey()).(string)
-	s, _  := safeSchema(schema)
+	s, _ := safeSchema(schema)
 
 	_, err := h.db.Exec(c.Context(), fmt.Sprintf(
 		`UPDATE %s.licenses SET status = 'banned' WHERE id = $1`, s), c.Params("id"))
@@ -270,7 +268,7 @@ func (h *ManageHandler) RevokeLicense(c *fiber.Ctx) error {
 
 func (h *ManageHandler) ListKeys(c *fiber.Ctx) error {
 	schema := c.Locals(middleware.SchemaKey()).(string)
-	s, _  := safeSchema(schema)
+	s, _ := safeSchema(schema)
 
 	rows, err := h.db.Query(c.Context(), fmt.Sprintf(
 		`SELECT k.id, k.key_value, sp.display_name, k.is_used,
@@ -317,7 +315,7 @@ func (h *ManageHandler) ListKeys(c *fiber.Ctx) error {
 
 func (h *ManageHandler) GenerateKeys(c *fiber.Ctx) error {
 	schema := c.Locals(middleware.SchemaKey()).(string)
-	s, _  := safeSchema(schema)
+	s, _ := safeSchema(schema)
 	adminID := c.Locals("user_id").(string)
 
 	var body struct {
@@ -340,7 +338,7 @@ func (h *ManageHandler) GenerateKeys(c *fiber.Ctx) error {
 	keys := make([]string, 0, body.Count)
 	for i := 0; i < body.Count; i++ {
 		kv, _ := crypto.RandomHex(16)
-		key    := fmt.Sprintf("KMG-%s-%s-%s-%s",
+		key := fmt.Sprintf("KMG-%s-%s-%s-%s",
 			kv[:4], kv[4:8], kv[8:12], kv[12:16])
 		keys = append(keys, key)
 		_, _ = h.db.Exec(c.Context(), fmt.Sprintf(
@@ -354,7 +352,7 @@ func (h *ManageHandler) GenerateKeys(c *fiber.Ctx) error {
 
 func (h *ManageHandler) DeleteKey(c *fiber.Ctx) error {
 	schema := c.Locals(middleware.SchemaKey()).(string)
-	s, _  := safeSchema(schema)
+	s, _ := safeSchema(schema)
 
 	_, err := h.db.Exec(c.Context(), fmt.Sprintf(
 		`DELETE FROM %s.loader_keys WHERE id = $1 AND is_used = false`, s), c.Params("id"))
@@ -368,7 +366,7 @@ func (h *ManageHandler) DeleteKey(c *fiber.Ctx) error {
 
 func (h *ManageHandler) ListPromo(c *fiber.Ctx) error {
 	schema := c.Locals(middleware.SchemaKey()).(string)
-	s, _  := safeSchema(schema)
+	s, _ := safeSchema(schema)
 
 	rows, err := h.db.Query(c.Context(), fmt.Sprintf(
 		`SELECT p.id, p.code, u.username, p.discount_pct, p.partner_pct,
@@ -417,7 +415,7 @@ func (h *ManageHandler) ListPromo(c *fiber.Ctx) error {
 
 func (h *ManageHandler) CreatePromo(c *fiber.Ctx) error {
 	schema := c.Locals(middleware.SchemaKey()).(string)
-	s, _  := safeSchema(schema)
+	s, _ := safeSchema(schema)
 
 	var body struct {
 		Code        string `json:"code"`
@@ -455,7 +453,7 @@ func (h *ManageHandler) CreatePromo(c *fiber.Ctx) error {
 
 func (h *ManageHandler) DeletePromo(c *fiber.Ctx) error {
 	schema := c.Locals(middleware.SchemaKey()).(string)
-	s, _  := safeSchema(schema)
+	s, _ := safeSchema(schema)
 
 	_, err := h.db.Exec(c.Context(), fmt.Sprintf(
 		`DELETE FROM %s.promo_codes WHERE id = $1`, s), c.Params("id"))
@@ -469,7 +467,7 @@ func (h *ManageHandler) DeletePromo(c *fiber.Ctx) error {
 
 func (h *ManageHandler) ListEvents(c *fiber.Ctx) error {
 	schema := c.Locals(middleware.SchemaKey()).(string)
-	s, _  := safeSchema(schema)
+	s, _ := safeSchema(schema)
 
 	rows, err := h.db.Query(c.Context(), fmt.Sprintf(
 		`SELECT re.id, u.username, re.event_type, re.severity,
@@ -508,7 +506,7 @@ func (h *ManageHandler) ListEvents(c *fiber.Ctx) error {
 
 func (h *ManageHandler) ListTransactions(c *fiber.Ctx) error {
 	schema := c.Locals(middleware.SchemaKey()).(string)
-	s, _  := safeSchema(schema)
+	s, _ := safeSchema(schema)
 
 	rows, err := h.db.Query(c.Context(), fmt.Sprintf(
 		`SELECT p.id, u.username, p.amount, p.currency, p.status, p.created_at, p.completed_at
@@ -545,7 +543,7 @@ func (h *ManageHandler) ListTransactions(c *fiber.Ctx) error {
 
 func (h *ManageHandler) ListEarnings(c *fiber.Ctx) error {
 	schema := c.Locals(middleware.SchemaKey()).(string)
-	s, _  := safeSchema(schema)
+	s, _ := safeSchema(schema)
 
 	rows, err := h.db.Query(c.Context(), fmt.Sprintf(
 		`SELECT pe.id, u.username, pe.amount, pe.currency,
@@ -584,7 +582,7 @@ func (h *ManageHandler) ListEarnings(c *fiber.Ctx) error {
 
 func (h *ManageHandler) MarkEarningPaid(c *fiber.Ctx) error {
 	schema := c.Locals(middleware.SchemaKey()).(string)
-	s, _  := safeSchema(schema)
+	s, _ := safeSchema(schema)
 
 	_, err := h.db.Exec(c.Context(), fmt.Sprintf(
 		`UPDATE %s.partner_earnings SET is_paid = true, paid_at = NOW() WHERE id = $1`, s),
@@ -599,7 +597,7 @@ func (h *ManageHandler) MarkEarningPaid(c *fiber.Ctx) error {
 
 func (h *ManageHandler) ListLogs(c *fiber.Ctx) error {
 	schema := c.Locals(middleware.SchemaKey()).(string)
-	s, _  := safeSchema(schema)
+	s, _ := safeSchema(schema)
 
 	rows, err := h.db.Query(c.Context(), fmt.Sprintf(
 		`SELECT al.id, u.username, al.event_type, al.severity,
@@ -637,7 +635,7 @@ func (h *ManageHandler) ListLogs(c *fiber.Ctx) error {
 
 func (h *ManageHandler) GetConfig(c *fiber.Ctx) error {
 	schema := c.Locals(middleware.SchemaKey()).(string)
-	s, _  := safeSchema(schema)
+	s, _ := safeSchema(schema)
 
 	var cfg struct {
 		DisplayName        string  `json:"display_name"`
@@ -662,7 +660,7 @@ func (h *ManageHandler) GetConfig(c *fiber.Ctx) error {
 
 func (h *ManageHandler) SetMaintenance(c *fiber.Ctx) error {
 	schema := c.Locals(middleware.SchemaKey()).(string)
-	s, _  := safeSchema(schema)
+	s, _ := safeSchema(schema)
 
 	var body struct {
 		Enabled bool   `json:"enabled"`
@@ -685,7 +683,7 @@ func (h *ManageHandler) SetMaintenance(c *fiber.Ctx) error {
 
 func (h *ManageHandler) ListRoles(c *fiber.Ctx) error {
 	schema := c.Locals(middleware.SchemaKey()).(string)
-	s, _  := safeSchema(schema)
+	s, _ := safeSchema(schema)
 
 	rows, err := h.db.Query(c.Context(), fmt.Sprintf(
 		`SELECT role_name, permissions, is_system FROM %s.role_permissions ORDER BY role_name`, s))
@@ -711,7 +709,7 @@ func (h *ManageHandler) ListRoles(c *fiber.Ctx) error {
 
 func (h *ManageHandler) UpsertRole(c *fiber.Ctx) error {
 	schema := c.Locals(middleware.SchemaKey()).(string)
-	s, _  := safeSchema(schema)
+	s, _ := safeSchema(schema)
 
 	var body struct {
 		RoleName    string `json:"role_name"`
@@ -734,7 +732,7 @@ func (h *ManageHandler) UpsertRole(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"ok": true})
 }
 
-func max(a, b int) int {
+func maxInt(a, b int) int {
 	if a > b {
 		return a
 	}
