@@ -2,154 +2,177 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { adminApi } from '@/lib/api'
-import { Card } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
-import { Lock } from 'lucide-react'
+import { Plus, Shield, Lock, Edit2, Check, X } from 'lucide-react'
 
-const ALL_PERMISSIONS = [
-    { group: 'Users',        perms: ['users.view','users.ban','users.role','users.hwid_reset','users.give_subscription'] },
-    { group: 'Licenses',     perms: ['licenses.view','licenses.revoke'] },
-    { group: 'Keys',         perms: ['keys.view','keys.generate','keys.delete'] },
-    { group: 'Promo',        perms: ['promo.view','promo.create','promo.delete'] },
-    { group: 'Payload',      perms: ['payload.upload'] },
-    { group: 'Monitoring',   perms: ['events.view','logs.view'] },
-    { group: 'Transactions', perms: ['transactions.view','transactions.mark_paid'] },
-    { group: 'Settings',     perms: ['settings.general','settings.maintenance'] },
-    { group: 'Partner',      perms: ['partner.earnings'] },
-]
+type Role = { role_name: string; permissions: string; is_system: boolean }
+
+const PERMISSION_PRESETS: Record<string, string[]> = {
+    'admin':   ['users.read','users.write','licenses.read','licenses.write','keys.generate','promo.write','roles.write','settings.write','payload.write'],
+    'support': ['users.read','licenses.read','keys.generate'],
+    'partner': ['earnings.read'],
+    'user':    [],
+}
 
 export default function AdminRolesPage() {
     const qc = useQueryClient()
-    const [selected,    setSelected]    = useState<string | null>(null)
-    const [newRoleName, setNewRoleName] = useState('')
-    const [checkedPerms, setCheckedPerms] = useState<Set<string>>(new Set())
+    const [showNew, setShowNew] = useState(false)
+    const [newName, setNewName] = useState('')
+    const [newPerms, setNewPerms] = useState<string[]>([])
+    const [editingRole, setEditingRole] = useState<string | null>(null)
+    const [editPerms, setEditPerms] = useState<string[]>([])
 
-    const { data } = useQuery({
+    const ALL_PERMS = [
+        'users.read','users.write','licenses.read','licenses.write',
+        'keys.generate','promo.write','roles.write','settings.write',
+        'payload.write','earnings.read',
+    ]
+
+    const { data, isLoading } = useQuery<Role[]>({
         queryKey: ['admin-roles'],
-        queryFn:  () => adminApi.roles().then(r => r.data.roles ?? []),
+        queryFn: () => adminApi.roles().then(r => r.data.roles ?? []),
     })
 
     const upsert = useMutation({
-        mutationFn: () => adminApi.upsertRole({
-            role_name:   newRoleName || selected!,
-            permissions: JSON.stringify([...checkedPerms]),
-        }),
+        mutationFn: (d: { role_name: string; permissions: string }) => adminApi.upsertRole(d),
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ['admin-roles'] })
             toast.success('Role saved')
-            setNewRoleName('')
+            setShowNew(false); setNewName(''); setNewPerms([]); setEditingRole(null)
         },
-        onError: () => toast.error('Cannot modify system role'),
+        onError: () => toast.error('Failed — cannot modify system role'),
     })
 
-    function selectRole(r: any) {
-        setSelected(r.role_name)
-        setNewRoleName('')
-        try {
-            const perms: string[] = JSON.parse(r.permissions)
-            setCheckedPerms(new Set(perms))
-        } catch {
-            setCheckedPerms(new Set())
-        }
+    const permsToJson = (perms: string[]) => JSON.stringify(
+        Object.fromEntries(perms.map(p => [p, true]))
+    )
+    const jsonToPerms = (json: string): string[] => {
+        try { return Object.entries(JSON.parse(json)).filter(([,v]) => v).map(([k]) => k) }
+        catch { return [] }
     }
 
-    function togglePerm(perm: string) {
-        setCheckedPerms(prev => {
-            const next = new Set(prev)
-            next.has(perm) ? next.delete(perm) : next.add(perm)
-            return next
-        })
+    const togglePerm = (perm: string, list: string[], setList: (l: string[]) => void) => {
+        setList(list.includes(perm) ? list.filter(p => p !== perm) : [...list, perm])
     }
 
     return (
-        <div className="flex flex-col gap-6">
-            <h1 className="text-2xl font-bold">Roles & Permissions</h1>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
-            <div className="grid gap-6 lg:grid-cols-3">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                    <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 700 }}>Roles & Permissions</h1>
+                    <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#71717a' }}>Custom roles are usable in Users → Set Role</p>
+                </div>
+                <Button onClick={() => setShowNew(true)} disabled={showNew}><Plus size={14} /> New Role</Button>
+            </div>
 
-                {/* Role list */}
-                <div className="flex flex-col gap-2">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-[--muted]">Roles</p>
-                    {(data ?? []).map((r: any) => (
-                        <button
-                            key={r.role_name}
-                            onClick={() => selectRole(r)}
-                            className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition-colors ${
-                                selected === r.role_name
-                                    ? 'border-[--accent] bg-[--accent]/10 text-white'
-                                    : 'border-[--border] bg-[--surface] text-[--muted] hover:text-white'
-                            }`}
-                        >
-                            <span className="capitalize">{r.role_name}</span>
-                            {r.is_system && <Lock size={12} className="text-[--muted]"/>}
-                        </button>
-                    ))}
-
-                    {/* New role */}
-                    <div className="mt-2 flex flex-col gap-2">
-                        <Input
-                            placeholder="New role name…"
-                            value={newRoleName}
-                            onChange={e => { setNewRoleName(e.target.value); setSelected(null); setCheckedPerms(new Set()) }}
-                        />
+            {/* New role form */}
+            {showNew && (
+                <div style={{ background: '#0d0d0f', borderRadius: '12px', border: '1px solid #27272a', padding: '18px' }}>
+                    <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '14px' }}>Create Role</div>
+                    <div style={{ display: 'flex', gap: '10px', marginBottom: '14px', flexWrap: 'wrap' }}>
+                        <input value={newName} onChange={e => setNewName(e.target.value.toLowerCase().replace(/\s/g,'_'))}
+                            placeholder="role_name (e.g. moderator)"
+                            style={{ background: '#1c1c1f', border: '1px solid #27272a', borderRadius: '8px', color: '#fafafa', fontSize: '13px', padding: '8px 12px', outline: 'none', flex: 1, minWidth: '200px' }} />
+                        <select onChange={e => { if (e.target.value) setNewPerms(PERMISSION_PRESETS[e.target.value] ?? []) }}
+                            style={{ background: '#1c1c1f', border: '1px solid #27272a', borderRadius: '8px', color: '#a1a1aa', fontSize: '13px', padding: '8px 12px', outline: 'none' }}>
+                            <option value="">Copy from preset…</option>
+                            {Object.keys(PERMISSION_PRESETS).map(p => <option key={p} value={p}>{p}</option>)}
+                        </select>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '14px' }}>
+                        {ALL_PERMS.map(p => (
+                            <button key={p} onClick={() => togglePerm(p, newPerms, setNewPerms)} style={{
+                                background: newPerms.includes(p) ? 'rgba(34,197,94,0.12)' : '#1c1c1f',
+                                border: `1px solid ${newPerms.includes(p) ? 'rgba(34,197,94,0.3)' : '#27272a'}`,
+                                borderRadius: '6px', padding: '4px 10px', cursor: 'pointer',
+                                color: newPerms.includes(p) ? '#22c55e' : '#71717a', fontSize: '12px',
+                                display: 'flex', alignItems: 'center', gap: '4px',
+                            }}>
+                                {newPerms.includes(p) && <Check size={10} />} {p}
+                            </button>
+                        ))}
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                        <Button size="sm" variant="outline" onClick={() => { setShowNew(false); setNewName(''); setNewPerms([]) }}><X size={13} /> Cancel</Button>
+                        <Button size="sm" loading={upsert.isPending} disabled={!newName}
+                            onClick={() => upsert.mutate({ role_name: newName, permissions: permsToJson(newPerms) })}>
+                            <Check size={13} /> Create
+                        </Button>
                     </div>
                 </div>
+            )}
 
-                {/* Permissions editor */}
-                <div className="lg:col-span-2">
-                    {(selected || newRoleName) ? (
-                        <Card>
-                            <p className="mb-4 font-semibold capitalize">
-                                {newRoleName || selected}
-                                {selected && (data ?? []).find((r: any) => r.role_name === selected)?.is_system && (
-                                    <Badge value="system" className="ml-2"/>
-                                )}
-                            </p>
-
-                            <div className="flex flex-col gap-4">
-                                {ALL_PERMISSIONS.map(group => (
-                                    <div key={group.group}>
-                                        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[--muted]">
-                                            {group.group}
-                                        </p>
-                                        <div className="grid grid-cols-2 gap-2">
-                                            {group.perms.map(perm => (
-                                                <label
-                                                    key={perm}
-                                                    className="flex cursor-pointer items-center gap-2 text-sm"
-                                                >
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={checkedPerms.has(perm)}
-                                                        onChange={() => togglePerm(perm)}
-                                                        className="accent-[--accent]"
-                                                    />
-                                                    <span className="font-mono text-xs text-zinc-300">{perm}</span>
-                                                </label>
-                                            ))}
-                                        </div>
+            {/* Roles list */}
+            {isLoading && <p style={{ color: '#71717a', fontSize: '13px' }}>Loading…</p>}
+            {(data ?? []).map(role => {
+                const perms = jsonToPerms(role.permissions)
+                const editing = editingRole === role.role_name
+                return (
+                    <div key={role.role_name} style={{ background: '#0d0d0f', borderRadius: '12px', border: '1px solid #1c1c1f', padding: '16px 20px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <div style={{
+                                    width: '32px', height: '32px', borderRadius: '8px',
+                                    background: role.is_system ? 'rgba(59,130,246,0.12)' : 'rgba(34,197,94,0.12)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                }}>
+                                    {role.is_system ? <Lock size={14} color="#3b82f6" /> : <Shield size={14} color="#22c55e" />}
+                                </div>
+                                <div>
+                                    <div style={{ fontWeight: 600, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        {role.role_name}
+                                        {role.is_system && <Badge value="active" />}
                                     </div>
-                                ))}
+                                    <div style={{ fontSize: '11px', color: '#52525b', marginTop: '2px' }}>
+                                        {role.is_system ? 'System role — cannot be modified' : `${perms.length} permission${perms.length !== 1 ? 's' : ''}`}
+                                    </div>
+                                </div>
                             </div>
-
-                            <Button
-                                className="mt-6"
-                                onClick={() => upsert.mutate()}
-                                loading={upsert.isPending}
-                            >
-                                Save Role
-                            </Button>
-                        </Card>
-                    ) : (
-                        <div className="flex h-40 items-center justify-center rounded-xl border border-dashed border-[--border] text-sm text-[--muted]">
-                            Select a role or create a new one
+                            {!role.is_system && !editing && (
+                                <button onClick={() => { setEditingRole(role.role_name); setEditPerms(perms) }} style={{
+                                    background: '#1c1c1f', border: '1px solid #27272a', borderRadius: '6px',
+                                    padding: '5px 10px', cursor: 'pointer', color: '#a1a1aa', fontSize: '12px',
+                                    display: 'flex', alignItems: 'center', gap: '5px',
+                                }}>
+                                    <Edit2 size={12} /> Edit
+                                </button>
+                            )}
+                            {editing && (
+                                <div style={{ display: 'flex', gap: '6px' }}>
+                                    <Button size="sm" variant="outline" onClick={() => setEditingRole(null)}><X size={12} /></Button>
+                                    <Button size="sm" loading={upsert.isPending}
+                                        onClick={() => upsert.mutate({ role_name: role.role_name, permissions: permsToJson(editPerms) })}>
+                                        <Check size={12} /> Save
+                                    </Button>
+                                </div>
+                            )}
                         </div>
-                    )}
-                </div>
-            </div>
+
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                            {ALL_PERMS.map(p => {
+                                const has = editing ? editPerms.includes(p) : perms.includes(p)
+                                return (
+                                    <button key={p}
+                                        onClick={() => editing && togglePerm(p, editPerms, setEditPerms)}
+                                        style={{
+                                            background: has ? 'rgba(34,197,94,0.1)' : '#1c1c1f',
+                                            border: `1px solid ${has ? 'rgba(34,197,94,0.25)' : '#1c1c1f'}`,
+                                            borderRadius: '5px', padding: '3px 8px',
+                                            color: has ? '#22c55e' : '#3f3f46', fontSize: '11px',
+                                            cursor: editing ? 'pointer' : 'default',
+                                            display: 'flex', alignItems: 'center', gap: '3px',
+                                        }}>
+                                        {has && <Check size={9} />} {p}
+                                    </button>
+                                )
+                            })}
+                        </div>
+                    </div>
+                )
+            })}
         </div>
     )
 }
