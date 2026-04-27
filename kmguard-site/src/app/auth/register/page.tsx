@@ -2,9 +2,9 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { authApi } from 'kmguard-site/src/lib/api'
-import { Button } from 'kmguard-site/src/components/ui/button'
-import { Input } from 'kmguard-site/src/components/ui/input'
+import { authApi } from '@/lib/api'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
 
 export default function RegisterPage() {

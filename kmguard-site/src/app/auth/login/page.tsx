@@ -2,10 +2,10 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { authApi } from 'kmguard-site/src/lib/api'
-import { useAuthStore } from 'kmguard-site/src/store/auth'
-import { Button } from 'kmguard-site/src/components/ui/button'
-import { Input } from 'kmguard-site/src/components/ui/input'
+import { authApi } from '@/lib/api'
+import { useAuthStore } from '@/store/auth'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
 
 export default function LoginPage() {
