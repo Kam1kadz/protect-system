@@ -7,6 +7,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/compress"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/ps/backend/config"
 	"github.com/ps/backend/internal/db"
@@ -77,6 +78,13 @@ func main() {
 
 	app.Use(recover.New())
 	app.Use(compress.New())
+	app.Use(cors.New(cors.Config{
+		AllowOriginsFunc: func(origin string) bool { return true },
+		AllowHeaders:     "Origin, Content-Type, Accept, Authorization, X-Tenant-ID, X-Request-ID, X-HMAC-Signature, X-Timestamp, X-Nonce",
+		AllowMethods:     "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+		AllowCredentials: true,
+		MaxAge:           3600,
+	}))
 	app.Use(middleware.TenantResolver(tenantRepo))
 	app.Use(middleware.RateLimit(redisClient, "pub", 120, time.Minute))
 
@@ -84,7 +92,7 @@ func main() {
 
 	v1 := app.Group("/api/v1")
 
-	// ── Auth ──────────────────────────────────────────────────────────────────
+	// ── Auth ────────────────────────────────────────────────────────────────────────────
 	auth := v1.Group("/auth")
 	auth.Use(middleware.RateLimit(redisClient, "auth", 10, time.Minute))
 	auth.Post("/register", authH.Register)
@@ -96,24 +104,24 @@ func main() {
 		authH.Me,
 	)
 
-    plansH := handlerPublic.NewPlansHandler(pool)
-    v1.Get("/auth/plans", plansH.List)
+	plansH := handlerPublic.NewPlansHandler(pool)
+	v1.Get("/auth/plans", plansH.List)
 
-    storeH := handlerPublic.NewStoreHandler(pool)
+	storeH := handlerPublic.NewStoreHandler(pool)
 
-    store := v1.Group("/store")
-    store.Use(middleware.MaintenanceGuard(pool))
-    store.Get("/promo/:code",
-        middleware.JWTAuth(cfg.JWTAccessSecret, "access"),
-        storeH.ValidatePromo,
-    )
-    store.Post("/activate",
-        middleware.JWTAuth(cfg.JWTAccessSecret, "access"),
-        middleware.RateLimit(redisClient, "store", 5, time.Minute),
-        storeH.Activate,
-    )
+	store := v1.Group("/store")
+	store.Use(middleware.MaintenanceGuard(pool))
+	store.Get("/promo/:code",
+		middleware.JWTAuth(cfg.JWTAccessSecret, "access"),
+		storeH.ValidatePromo,
+	)
+	store.Post("/activate",
+		middleware.JWTAuth(cfg.JWTAccessSecret, "access"),
+		middleware.RateLimit(redisClient, "store", 5, time.Minute),
+		storeH.Activate,
+	)
 
-	// ── Loader (protected by maintenance) ────────────────────────────────────
+	// ── Loader (protected by maintenance) ─────────────────────────────────────────
 	loader := v1.Group("/loader")
 	loader.Use(middleware.MaintenanceGuard(pool))
 	loader.Use(middleware.RateLimit(redisClient, "loader", 30, time.Minute))
@@ -125,7 +133,7 @@ func main() {
 	loader.Post("/heartbeat", loaderH.Heartbeat)
 	loader.Post("/revoke",    loaderH.Revoke)
 
-	// ── Runtime (protected by maintenance) ───────────────────────────────────
+	// ── Runtime (protected by maintenance) ─────────────────────────────────────────
 	rt := v1.Group("/runtime")
 	rt.Use(middleware.MaintenanceGuard(pool))
 	rt.Use(middleware.RateLimit(redisClient, "runtime", 60, time.Minute))
@@ -137,7 +145,7 @@ func main() {
 	rt.Post("/event",     runtimeH.ReportEvent)
 	rt.Post("/terminate", runtimeH.Terminate)
 
-	// ── Admin API ─────────────────────────────────────────────────────────────
+	// ── Admin API ───────────────────────────────────────────────────────────────────
 	adm := v1.Group("/admin")
 	adm.Use(middleware.JWTAuth(cfg.JWTAccessSecret, "access"))
 	adm.Use(middleware.RequireRoles("admin", "support"))
@@ -161,7 +169,7 @@ func main() {
 	users.Post("/:id/subscription", middleware.RequireRoles("admin"), manageH.GiveSubscription)
 
 	lics := adm.Group("/licenses")
-	lics.Get("/",      manageH.ListLicenses)
+	lics.Get("/",       manageH.ListLicenses)
 	lics.Delete("/:id", manageH.RevokeLicense)
 
 	keys := adm.Group("/keys")
@@ -174,16 +182,16 @@ func main() {
 	promo.Post("/",      middleware.RequireRoles("admin"), manageH.CreatePromo)
 	promo.Delete("/:id", middleware.RequireRoles("admin"), manageH.DeletePromo)
 
-	adm.Get("/events",           manageH.ListEvents)
-	adm.Get("/transactions",     manageH.ListTransactions)
-	adm.Get("/earnings",         manageH.ListEarnings)
-	adm.Post("/earnings/:id/pay",middleware.RequireRoles("admin"), manageH.MarkEarningPaid)
-	adm.Get("/logs",             manageH.ListLogs)
+	adm.Get("/events",            manageH.ListEvents)
+	adm.Get("/transactions",      manageH.ListTransactions)
+	adm.Get("/earnings",          manageH.ListEarnings)
+	adm.Post("/earnings/:id/pay", middleware.RequireRoles("admin"), manageH.MarkEarningPaid)
+	adm.Get("/logs",              manageH.ListLogs)
 
 	payload := adm.Group("/payload")
 	payload.Use(middleware.RequireRoles("admin"))
-	payload.Post("/:plan_id", payloadH.Upload)
-	payload.Get("/:plan_id",  payloadH.Check)
+	payload.Post("/:plan_id",   payloadH.Upload)
+	payload.Get("/:plan_id",    payloadH.Check)
 	payload.Delete("/:plan_id", payloadH.Delete)
 
 	log.Printf("public server on %s", cfg.PublicAddr)
