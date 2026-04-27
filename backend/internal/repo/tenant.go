@@ -98,13 +98,14 @@ func (r *TenantRepo) FindByID(ctx context.Context, id string) (*model.Tenant, er
 func (r *TenantRepo) Create(ctx context.Context,
 	slug, displayName, ownerEmail, signingKeyEnc, certPin string,
 ) (*model.Tenant, error) {
+	schemaName := "tenant_" + slug
 	row := r.db.QueryRow(ctx,
 		`INSERT INTO public.tenants
-		   (slug, display_name, owner_email, signing_key_enc, cert_pin)
-		 VALUES ($1, $2, $3, $4, $5)
+		   (slug, display_name, owner_email, signing_key_enc, cert_pin, schema_name)
+		 VALUES ($1, $2, $3, $4, $5, $6)
 		 RETURNING id, slug, display_name, owner_email, signing_key_enc,
 		           cert_pin, status, custom_domain, created_at, updated_at`,
-		slug, displayName, ownerEmail, signingKeyEnc, certPin,
+		slug, displayName, ownerEmail, signingKeyEnc, certPin, schemaName,
 	)
 	t, err := scanTenant(row)
 	if err != nil {
