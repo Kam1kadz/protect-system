@@ -2,94 +2,92 @@ package service
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/ps/backend/config"
 	"github.com/ps/backend/internal/crypto"
 	"github.com/ps/backend/internal/repo"
 )
 
 type RuntimeService struct {
-	db    *pgxpool.Pool
-	users *repo.UserRepo
+	rt      *repo.RuntimeRepo
+	users   *repo.UserRepo
+	lic     *repo.LicenseRepo
+	cfg     *config.Config
 }
 
-func NewRuntimeService(db *pgxpool.Pool, users *repo.UserRepo) *RuntimeService {
-	return &RuntimeService{db: db, users: users}
+func NewRuntimeService(
+	rt *repo.RuntimeRepo,
+	users *repo.UserRepo,
+	lic *repo.LicenseRepo,
+	cfg *config.Config,
+) *RuntimeService {
+	return &RuntimeService{rt: rt, users: users, lic: lic, cfg: cfg}
 }
 
 type RuntimeUserInfo struct {
-	Username string `json:"username"`
-	PlanName string `json:"plan_name"`
-	Role     string `json:"role"`
+	Username        string `json:"username"`
+	PlanName        string `json:"plan_name"`
+	PlanDisplayName string `json:"plan_display_name"`
+	Role            string `json:"role"`
+	MCVersion       string `json:"mc_version,omitempty"`
 }
 
 func (s *RuntimeService) Init(ctx context.Context, schema, sessionToken, hwid, launcherToken, integrityProof string) error {
-	// Validate session exists
 	tokenHash := crypto.HashSHA256Hex([]byte(sessionToken))
-	_, err := s.users.FindSession(ctx, schema, tokenHash)
+	_, err := s.rt.GetSessionFull(ctx, schema, tokenHash)
 	return err
 }
 
 func (s *RuntimeService) Heartbeat(ctx context.Context, schema, sessionToken string) error {
 	tokenHash := crypto.HashSHA256Hex([]byte(sessionToken))
-	sess, err := s.users.FindSession(ctx, schema, tokenHash)
+	sf, err := s.rt.GetSessionFull(ctx, schema, tokenHash)
 	if err != nil {
 		return ErrSessionNotFound
 	}
-	return s.users.HeartbeatSession(ctx, schema, sess.ID)
+	return s.rt.TouchHeartbeat(ctx, schema, sf.SessionID)
 }
 
 func (s *RuntimeService) GetUser(ctx context.Context, schema, sessionToken string) (*RuntimeUserInfo, error) {
 	tokenHash := crypto.HashSHA256Hex([]byte(sessionToken))
-	sess, err := s.users.FindSession(ctx, schema, tokenHash)
+	sf, err := s.rt.GetSessionFull(ctx, schema, tokenHash)
 	if err != nil {
 		return nil, ErrSessionNotFound
 	}
 
-	user, err := s.users.FindByID(ctx, schema, sess.UserID)
-	if err != nil {
-		return nil, fmt.Errorf("load user: %w", err)
+	info := &RuntimeUserInfo{
+		Username:        sf.Username,
+		PlanName:        sf.PlanName,
+		PlanDisplayName: sf.PlanDisplayName,
+		Role:            sf.Role,
 	}
-
-	sc, _ := safeSchemaName(schema)
-	var planName string
-	_ = s.db.QueryRow(ctx, fmt.Sprintf(
-		`SELECT sp.display_name FROM %s.licenses l
-		 JOIN %s.subscription_plans sp ON sp.id = l.plan_id
-		 WHERE l.id = $1 LIMIT 1`, sc, sc),
-		sess.LicenseID,
-	).Scan(&planName)
-
-	return &RuntimeUserInfo{
-		Username: user.Username,
-		PlanName: planName,
-		Role:     string(user.Role),
-	}, nil
+	if sf.MCVersion != nil {
+		info.MCVersion = *sf.MCVersion
+	}
+	return info, nil
 }
 
 func (s *RuntimeService) ReportEvent(ctx context.Context, schema, sessionToken, eventType, ip string, payload map[string]any) error {
 	tokenHash := crypto.HashSHA256Hex([]byte(sessionToken))
-	sess, err := s.users.FindSession(ctx, schema, tokenHash)
+	sf, err := s.rt.GetSessionFull(ctx, schema, tokenHash)
 	if err != nil {
 		return ErrSessionNotFound
 	}
 
-	data, _ := json.Marshal(payload)
-	sc, _ := safeSchemaName(schema)
-	_, err = s.db.Exec(ctx, fmt.Sprintf(
-		`INSERT INTO %s.runtime_events (user_id, event_type, severity, payload, ip_address)
-		 VALUES ($1, $2, 'warn', $3, $4)`, sc),
-		sess.UserID, eventType, data, ip)
-	return err
+	return s.rt.StoreEvent(ctx, schema, &repo.RuntimeEventCreate{
+		SessionID: &sf.SessionID,
+		UserID:    &sf.UserID,
+		EventType: eventType,
+		Severity:  "warn",
+		Payload:   payload,
+		IPAddress: &ip,
+	})
 }
 
 func (s *RuntimeService) Terminate(ctx context.Context, schema, sessionToken string) error {
 	tokenHash := crypto.HashSHA256Hex([]byte(sessionToken))
-	return s.users.RevokeSession(ctx, schema, tokenHash)
-}
-
-func safeSchemaName(schema string) (string, error) {
-	return safeSchemaValidate(schema)
+	sf, err := s.rt.GetSessionFull(ctx, schema, tokenHash)
+	if err != nil {
+		return nil // сессии нет — ничего делать не нужно
+	}
+	return s.rt.BanSession(ctx, schema, sf.SessionID)
 }
