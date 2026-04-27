@@ -10,6 +10,10 @@ import (
 const ctxTenant = "tenant"
 const ctxSchema = "schema"
 
+func schemaForSlug(slug string) string {
+	return "tenant_" + slug
+}
+
 func TenantResolver(tr *repo.TenantRepo) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		tid := c.Get("X-Tenant-ID")
@@ -19,7 +23,7 @@ func TenantResolver(tr *repo.TenantRepo) fiber.Handler {
 				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unknown tenant"})
 			}
 			c.Locals(ctxTenant, t)
-			c.Locals(ctxSchema, t.Slug)
+			c.Locals(ctxSchema, schemaForSlug(t.Slug))
 			return c.Next()
 		}
 
@@ -30,7 +34,7 @@ func TenantResolver(tr *repo.TenantRepo) fiber.Handler {
 			t, err := tr.FindBySlug(c.Context(), parts[0])
 			if err == nil && t != nil {
 				c.Locals(ctxTenant, t)
-				c.Locals(ctxSchema, t.Slug)
+				c.Locals(ctxSchema, schemaForSlug(t.Slug))
 				return c.Next()
 			}
 		}
@@ -40,7 +44,7 @@ func TenantResolver(tr *repo.TenantRepo) fiber.Handler {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unknown tenant"})
 		}
 		c.Locals(ctxTenant, t)
-		c.Locals(ctxSchema, t.Slug)
+		c.Locals(ctxSchema, schemaForSlug(t.Slug))
 		return c.Next()
 	}
 }
