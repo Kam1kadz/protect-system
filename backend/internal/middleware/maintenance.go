@@ -10,7 +10,7 @@ import (
 
 func MaintenanceGuard(db *pgxpool.Pool) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		schema, ok := c.Locals(schemaKey).(string)
+		schema, ok := c.Locals(ctxSchema).(string)
 		if !ok || schema == "" {
 			return c.Next()
 		}
