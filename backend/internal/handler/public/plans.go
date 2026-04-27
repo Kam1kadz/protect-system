@@ -3,7 +3,6 @@ package public
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -18,7 +17,7 @@ func NewPlansHandler(db *pgxpool.Pool) *PlansHandler {
 
 func (h *PlansHandler) List(c *fiber.Ctx) error {
 	schema := c.Locals(middleware.SchemaKey()).(string)
-	s, _   := safeSchema(schema)
+	s, _ := safeSchema(schema)
 
 	rows, err := h.db.Query(c.Context(), fmt.Sprintf(
 		`SELECT id, name, display_name, sort_order
@@ -42,7 +41,6 @@ func (h *PlansHandler) List(c *fiber.Ctx) error {
 		if err := rows.Scan(&p.ID, &p.Name, &p.DisplayName, new(int)); err != nil {
 			continue
 		}
-		// Load tiers
 		trows, _ := h.db.Query(context.Background(), fmt.Sprintf(
 			`SELECT id, duration_days, price, currency
 			 FROM %s.plan_tiers WHERE plan_id = $1 AND is_active = true

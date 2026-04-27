@@ -47,8 +47,11 @@ func main() {
 
 	v1.Post("/tenants", func(c *fiber.Ctx) error {
 		var body struct {
-			Slug        string `json:"slug"`
-			DisplayName string `json:"display_name"`
+			Slug          string `json:"slug"`
+			DisplayName   string `json:"display_name"`
+			OwnerEmail    string `json:"owner_email"`
+			SigningKeyEnc string `json:"signing_key_enc"`
+			CertPin       string `json:"cert_pin"`
 		}
 		if err := c.BodyParser(&body); err != nil || body.Slug == "" {
 			return c.Status(400).JSON(fiber.Map{"error": "bad request"})
@@ -58,7 +61,7 @@ func main() {
 			return c.Status(500).JSON(fiber.Map{"error": "migration failed: " + err.Error()})
 		}
 
-		tenant, err := tenantRepo.Create(c.Context(), body.Slug, body.DisplayName)
+		tenant, err := tenantRepo.Create(c.Context(), body.Slug, body.DisplayName, body.OwnerEmail, body.SigningKeyEnc, body.CertPin)
 		if err != nil {
 			return c.Status(500).JSON(fiber.Map{"error": "create failed"})
 		}

@@ -28,9 +28,10 @@ type Config struct {
 	MinioBucket    string
 	MinioUseSSL    bool
 
-	AdminSecret      string
-	HMACDrift        int64
-	NonceTTL         int
+	AdminSecret   string
+	SuperAdminKey string
+	HMACDrift     int64
+	NonceTTL      int
 }
 
 func Load() (*Config, error) {
@@ -73,6 +74,7 @@ func Load() (*Config, error) {
 		MinioBucket:      getEnv("MINIO_BUCKET", "payloads"),
 		MinioUseSSL:      getEnv("MINIO_USE_SSL", "false") == "true",
 		AdminSecret:      mustEnv("ADMIN_SECRET"),
+		SuperAdminKey:    mustEnv("SUPER_ADMIN_KEY"),
 		HMACDrift:        drift,
 		NonceTTL:         nonceTTL,
 	}, nil

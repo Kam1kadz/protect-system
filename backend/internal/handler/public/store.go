@@ -1,7 +1,6 @@
 package public
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -19,19 +18,17 @@ func NewStoreHandler(db *pgxpool.Pool) *StoreHandler {
 	return &StoreHandler{db: db}
 }
 
-// GET /api/v1/store/promo/:code
-// Валидация промокода — показываем скидку до покупки
 func (h *StoreHandler) ValidatePromo(c *fiber.Ctx) error {
 	schema := c.Locals(middleware.SchemaKey()).(string)
-	s, _   := safeSchema(schema)
-	code   := c.Params("code")
+	s, _ := safeSchema(schema)
+	code := c.Params("code")
 
-	var id          string
+	var id string
 	var discountPct int
-	var partnerPct  int
-	var usesMax     *int
-	var usesTotal   int
-	var expiresAt   *time.Time
+	var partnerPct int
+	var usesMax *int
+	var usesTotal int
+	var expiresAt *time.Time
 
 	err := h.db.QueryRow(c.Context(), fmt.Sprintf(
 		`SELECT id, discount_pct, partner_pct, uses_max, uses_total, expires_at
@@ -59,11 +56,9 @@ func (h *StoreHandler) ValidatePromo(c *fiber.Ctx) error {
 	})
 }
 
-// POST /api/v1/store/activate
-// Ручная активация — пользователь вводит ключ
 func (h *StoreHandler) Activate(c *fiber.Ctx) error {
 	schema := c.Locals(middleware.SchemaKey()).(string)
-	s, _   := safeSchema(schema)
+	s, _ := safeSchema(schema)
 	userID := c.Locals("user_id").(string)
 
 	var body struct {
@@ -74,7 +69,6 @@ func (h *StoreHandler) Activate(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "key required"})
 	}
 
-	// ── 1. Найти ключ ─────────────────────────────────────────────────────────
 	var keyID, planID string
 	var tierID *string
 	var isUsed bool
@@ -92,8 +86,7 @@ func (h *StoreHandler) Activate(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "key already used"})
 	}
 
-	// ── 2. Определить длительность из tier ───────────────────────────────────
-	durationDays := 30 // дефолт
+	durationDays := 30
 	if tierID != nil {
 		_ = h.db.QueryRow(c.Context(), fmt.Sprintf(
 			`SELECT duration_days FROM %s.plan_tiers WHERE id = $1`, s),
@@ -101,7 +94,6 @@ func (h *StoreHandler) Activate(c *fiber.Ctx) error {
 		).Scan(&durationDays)
 	}
 
-	// ── 3. Применить промокод если есть ───────────────────────────────────────
 	var promoID *string
 	if body.PromoCode != "" {
 		var pid, partnerUserID string
@@ -124,7 +116,6 @@ func (h *StoreHandler) Activate(c *fiber.Ctx) error {
 
 			promoID = &pid
 
-			// Начислить % партнёру если цена известна
 			if partnerPct > 0 && partnerUserID != "" && tierID != nil {
 				var price float64
 				_ = h.db.QueryRow(c.Context(), fmt.Sprintf(
@@ -141,14 +132,12 @@ func (h *StoreHandler) Activate(c *fiber.Ctx) error {
 				}
 			}
 
-			// Инкрементировать uses_total
 			_, _ = h.db.Exec(c.Context(), fmt.Sprintf(
 				`UPDATE %s.promo_codes SET uses_total = uses_total + 1 WHERE id = $1`, s), pid)
 		}
 	}
 
-	// ── 4. Создать лицензию ───────────────────────────────────────────────────
-	licKey, _  := crypto.RandomHex(16)
+	licKey, _ := crypto.RandomHex(16)
 	secretKey, _ := crypto.RandomHex(32)
 	expiresAt := time.Now().AddDate(0, 0, durationDays)
 
@@ -165,14 +154,12 @@ func (h *StoreHandler) Activate(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": "failed to create license"})
 	}
 
-	// ── 5. Отметить ключ как использованный ──────────────────────────────────
 	_, _ = h.db.Exec(c.Context(), fmt.Sprintf(
 		`UPDATE %s.loader_keys
 		 SET is_used = true, used_by = $1, used_at = NOW()
 		 WHERE id = $2`, s),
 		userID, keyID)
 
-	// ── 6. Аудит ──────────────────────────────────────────────────────────────
 	_, _ = h.db.Exec(c.Context(), fmt.Sprintf(
 		`INSERT INTO %s.audit_log (user_id, event_type, severity, ip_address, payload)
 		 VALUES ($1, 'key_activated', 'info', $2, $3)`, s),

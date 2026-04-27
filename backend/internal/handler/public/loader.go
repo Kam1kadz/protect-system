@@ -1,6 +1,8 @@
 package public
 
 import (
+	"bufio"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/ps/backend/internal/middleware"
 	"github.com/ps/backend/internal/model"
@@ -83,7 +85,6 @@ func (h *LoaderHandler) Payload(c *fiber.Ctx) error {
 
 	c.Context().SetBodyStreamWriter(func(w *bufio.Writer) {
 		if err := h.svc.StreamPayload(c.Context(), schema, tenant.Slug, raw, w); err != nil {
-			// Stream already started — cannot send JSON error, just close
 			_ = err
 		}
 	})
