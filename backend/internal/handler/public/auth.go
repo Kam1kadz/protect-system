@@ -2,6 +2,7 @@ package public
 
 import (
 	"errors"
+	"log"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/ps/backend/internal/middleware"
@@ -39,12 +40,14 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		if errors.Is(err, service.ErrEmailTaken) || errors.Is(err, service.ErrUsernameTaken) {
 			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": err.Error()})
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "internal"})
+		log.Printf("[Register] schema=%s err=%v", schema, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	pair, err := h.svc.Login(c.Context(), schema, tenant.ID, body.Email, body.Password, c.IP())
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "internal"})
+		log.Printf("[Register/Login] schema=%s err=%v", schema, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	_ = user
@@ -72,6 +75,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		if errors.Is(err, service.ErrUserBanned) {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "banned"})
 		}
+		log.Printf("[Login] schema=%s err=%v", schema, err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "internal"})
 	}
 
