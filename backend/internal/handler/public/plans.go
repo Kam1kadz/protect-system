@@ -16,8 +16,11 @@ func NewPlansHandler(db *pgxpool.Pool) *PlansHandler {
 }
 
 func (h *PlansHandler) List(c *fiber.Ctx) error {
-	schema := c.Locals(middleware.SchemaKey()).(string)
-	s, _ := safeSchema(schema)
+	slug := c.Locals(middleware.SchemaKey()).(string)
+	s, err := safeSchema(slug)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "invalid tenant"})
+	}
 
 	rows, err := h.db.Query(c.Context(), fmt.Sprintf(
 		`SELECT id, name, display_name, sort_order
