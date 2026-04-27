@@ -1,18 +1,46 @@
 import axios, { AxiosInstance } from 'axios'
 
-const BASE      = process.env.NEXT_PUBLIC_API_URL  ?? 'http://localhost:8080'
+const BASE      = process.env.NEXT_PUBLIC_API_URL   ?? 'http://localhost:8080'
 const TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID ?? ''
+
+function getToken(): string | null {
+    if (typeof window === 'undefined') return null
+    try {
+        const raw = localStorage.getItem('kmg-auth')
+        if (!raw) return null
+        return JSON.parse(raw)?.state?.accessToken ?? null
+    } catch {
+        return null
+    }
+}
+
+function setToken(token: string) {
+    if (typeof window === 'undefined') return
+    try {
+        const raw = localStorage.getItem('kmg-auth')
+        const parsed = raw ? JSON.parse(raw) : { state: {} }
+        parsed.state.accessToken = token
+        localStorage.setItem('kmg-auth', JSON.stringify(parsed))
+    } catch {}
+}
+
+function clearToken() {
+    if (typeof window === 'undefined') return
+    try {
+        const raw = localStorage.getItem('kmg-auth')
+        const parsed = raw ? JSON.parse(raw) : { state: {} }
+        delete parsed.state.accessToken
+        localStorage.setItem('kmg-auth', JSON.stringify(parsed))
+    } catch {}
+}
 
 function createClient(): AxiosInstance {
     const client = axios.create({ baseURL: BASE, withCredentials: true })
 
     client.interceptors.request.use(cfg => {
         if (TENANT_ID) cfg.headers['X-Tenant-ID'] = TENANT_ID
-
-        if (typeof window !== 'undefined') {
-            const token = sessionStorage.getItem('access_token')
-            if (token) cfg.headers['Authorization'] = `Bearer ${token}`
-        }
+        const token = getToken()
+        if (token) cfg.headers['Authorization'] = `Bearer ${token}`
         return cfg
     })
 
@@ -32,11 +60,11 @@ function createClient(): AxiosInstance {
                         },
                     )
                     const token = res.data.access_token
-                    sessionStorage.setItem('access_token', token)
+                    setToken(token)
                     orig.headers['Authorization'] = `Bearer ${token}`
                     return client(orig)
                 } catch {
-                    sessionStorage.removeItem('access_token')
+                    clearToken()
                     if (typeof window !== 'undefined') {
                         window.location.href = '/auth/login'
                     }
@@ -51,7 +79,7 @@ function createClient(): AxiosInstance {
 
 export const api = createClient()
 
-// ── Auth ────────────────────────────────────────────────────────────────────────────
+// ── Auth ──────────────────────────────────────────────────────────────────────────────────
 
 export const authApi = {
     login: (email: string, password: string) =>
@@ -70,7 +98,7 @@ export const authApi = {
         api.post('/api/v1/auth/refresh'),
 }
 
-// ── Admin ─────────────────────────────────────────────────────────────────────────
+// ── Admin ───────────────────────────────────────────────────────────────────────────────
 
 export const adminApi = {
     stats: () =>
@@ -176,7 +204,7 @@ export const adminApi = {
     }) => api.post('/api/v1/admin/roles', data),
 }
 
-// ── Store (public) ──────────────────────────────────────────────────────────────
+// ── Store (public) ──────────────────────────────────────────────────────────────────
 
 export const storeApi = {
     plans: () =>
@@ -192,7 +220,7 @@ export const storeApi = {
         api.get(`/api/v1/store/promo/${encodeURIComponent(code)}`),
 }
 
-// ── Profile (public) ───────────────────────────────────────────────────────────
+// ── Profile (public) ──────────────────────────────────────────────────────────────────
 
 export const profileApi = {
     licenses: () =>
