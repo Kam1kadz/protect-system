@@ -172,19 +172,6 @@ func scanUser(row pgx.Row) (*model.User, error) {
 	return &u, nil
 }
 
-func scanLicense(row pgx.Row) (*model.License, error) {
-	var l model.License
-	err := row.Scan(
-		&l.ID, &l.UserID, &l.PlanID, &l.TierID, &l.HWIDSnapshot,
-		&l.Status, &l.ExpiresAt, &l.PausedAt, &l.PauseReason,
-		&l.BanReason, &l.CreatedAt,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("scan license: %w", err)
-	}
-	return &l, nil
-}
-
 func scanSession(row pgx.Row) (*model.Session, error) {
 	var s model.Session
 	err := row.Scan(
