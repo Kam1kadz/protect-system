@@ -45,11 +45,20 @@ func RunPublicMigrations(dsn string) error {
 }
 
 func RunTenantMigrations(dsn, slug string) error {
+	// Validate slug to prevent SQL injection
+	for _, c := range slug {
+		if !((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_') {
+			return fmt.Errorf("invalid tenant slug: %s", slug)
+		}
+	}
+
+	// Add search_path and options to DSN
 	sep := "?"
 	if strings.Contains(dsn, "?") {
 		sep = "&"
 	}
-	tenantDSN := dsn + sep + "search_path=" + slug
+	// Use search_path param supported by pgx5 driver
+	tenantDSN := dsn + sep + "search_path=" + slug + ",public&options=-c%20search_path%3D" + slug + "%2Cpublic"
 
 	src, err := iofs.New(publicFS, "migrations/public")
 	if err != nil {
