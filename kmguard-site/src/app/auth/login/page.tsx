@@ -23,7 +23,7 @@ export default function LoginPage() {
             setToken(res.data.access_token)
             const me   = await authApi.me()
             setUser(me.data)
-            router.push('/profile')
+            router.push('/kmguard/profile')
         } catch {
             toast.error('Invalid email or password')
         } finally {
