@@ -18,6 +18,11 @@ func NewUserRepo(db *pgxpool.Pool) *UserRepo {
 	return &UserRepo{db: db}
 }
 
+const selectUserCols = `id, username, email, password_hash, role,
+	hwid, hwid_locked_at,
+	ip_registered::text, ip_last::text,
+	last_seen_at, created_at`
+
 func (r *UserRepo) Create(ctx context.Context, schema, username, email, passwordHash, ip string) (*model.User, error) {
 	s, err := safeSchema(schema)
 	if err != nil {
@@ -25,9 +30,8 @@ func (r *UserRepo) Create(ctx context.Context, schema, username, email, password
 	}
 	q := fmt.Sprintf(
 		`INSERT INTO %s.users (username, email, password_hash, ip_registered, ip_last)
-		 VALUES ($1, $2, $3, $4, $4)
-		 RETURNING id, username, email, password_hash, role,
-		           hwid, hwid_locked_at, ip_registered, ip_last, last_seen_at, created_at`,
+		 VALUES ($1, $2, $3, $4::inet, $4::inet)
+		 RETURNING `+selectUserCols,
 		s,
 	)
 	row := r.db.QueryRow(ctx, q, username, email, passwordHash, ip)
@@ -40,9 +44,7 @@ func (r *UserRepo) FindByEmail(ctx context.Context, schema, email string) (*mode
 		return nil, err
 	}
 	q := fmt.Sprintf(
-		`SELECT id, username, email, password_hash, role,
-		        hwid, hwid_locked_at, ip_registered, ip_last, last_seen_at, created_at
-		 FROM %s.users WHERE email = $1`,
+		`SELECT `+selectUserCols+` FROM %s.users WHERE email = $1`,
 		s,
 	)
 	row := r.db.QueryRow(ctx, q, email)
@@ -55,9 +57,7 @@ func (r *UserRepo) FindByID(ctx context.Context, schema, id string) (*model.User
 		return nil, err
 	}
 	q := fmt.Sprintf(
-		`SELECT id, username, email, password_hash, role,
-		        hwid, hwid_locked_at, ip_registered, ip_last, last_seen_at, created_at
-		 FROM %s.users WHERE id = $1`,
+		`SELECT `+selectUserCols+` FROM %s.users WHERE id = $1`,
 		s,
 	)
 	row := r.db.QueryRow(ctx, q, id)
@@ -70,7 +70,7 @@ func (r *UserRepo) UpdateLastSeen(ctx context.Context, schema, id, ip string) er
 		return err
 	}
 	q := fmt.Sprintf(
-		`UPDATE %s.users SET last_seen_at = NOW(), ip_last = $1 WHERE id = $2`,
+		`UPDATE %s.users SET last_seen_at = NOW(), ip_last = $1::inet WHERE id = $2`,
 		s,
 	)
 	_, err = r.db.Exec(ctx, q, ip, id)
