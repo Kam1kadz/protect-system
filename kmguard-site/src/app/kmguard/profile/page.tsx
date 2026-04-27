@@ -5,20 +5,41 @@ import { Card, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatDate, timeUntil } from '@/lib/utils'
-import { Download, User, Crown, Calendar } from 'lucide-react'
 import { useAuthStore } from '@/store/auth'
+import { Download, User, Crown, Calendar, Loader2 } from 'lucide-react'
 import type { License } from '@/types'
 
 export default function ProfilePage() {
-    const { user } = useAuthStore()
+    const { setUser } = useAuthStore()
 
-    const { data: licData, isLoading } = useQuery({
+    const { data, isLoading } = useQuery({
         queryKey: ['my-profile'],
-        queryFn:  () => authApi.me().then(r => r.data),
+        queryFn: async () => {
+            const res = await authApi.me()
+            // обновляем store свежими данными
+            setUser(res.data)
+            return res.data
+        },
+        staleTime: 30_000,
     })
 
-    const licenses: License[] = licData?.licenses ?? []
-    const earnings: number    = licData?.partner_earnings_pending ?? 0
+    const username  = data?.username  ?? ''
+    const email     = data?.email     ?? ''
+    const role      = data?.role      ?? 'user'
+    const licenses: License[] = data?.licenses ?? []
+    const earnings: number    = data?.partner_earnings_pending ?? 0
+
+    if (isLoading) {
+        return (
+            <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                height: '200px', gap: '10px', color: '#71717a', fontSize: '13px',
+            }}>
+                <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} color="#22c55e" />
+                Loading profile...
+            </div>
+        )
+    }
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '640px', margin: '0 auto' }}>
@@ -34,10 +55,10 @@ export default function ProfilePage() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontWeight: 700, fontSize: '18px' }}>{user?.username}</span>
-                        <Badge value={user?.role ?? 'user'} />
+                        <span style={{ fontWeight: 700, fontSize: '18px' }}>{username || '—'}</span>
+                        <Badge value={role} />
                     </div>
-                    <span style={{ fontSize: '13px', color: '#71717a' }}>{user?.email}</span>
+                    <span style={{ fontSize: '13px', color: '#71717a' }}>{email || '—'}</span>
                 </div>
             </div>
 
@@ -45,14 +66,18 @@ export default function ProfilePage() {
             <Card>
                 <CardHeader><CardTitle>Account Details</CardTitle></CardHeader>
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    {([['Username', user?.username], ['Email', user?.email], ['Role', user?.role]] as [string, string | undefined][]).map(([k, v]) => (
+                    {([
+                        ['Username', username],
+                        ['Email',    email],
+                        ['Role',     role],
+                    ] as [string, string][]).map(([k, v]) => (
                         <div key={k} style={{
                             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                             padding: '10px 0', borderBottom: '1px solid #1c1c1f',
                             fontSize: '13px',
                         }}>
                             <span style={{ color: '#71717a' }}>{k}</span>
-                            <span style={{ fontWeight: 500, textTransform: 'capitalize' }}>{v}</span>
+                            <span style={{ fontWeight: 500, textTransform: 'capitalize' }}>{v || '—'}</span>
                         </div>
                     ))}
                 </div>
@@ -69,13 +94,7 @@ export default function ProfilePage() {
                     </a>
                 </CardHeader>
 
-                {isLoading ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        {[1,2].map(i => (
-                            <div key={i} style={{ height: '64px', borderRadius: '8px', background: '#1c1c1f' }} />
-                        ))}
-                    </div>
-                ) : licenses.length === 0 ? (
+                {licenses.length === 0 ? (
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', padding: '32px 0', textAlign: 'center' }}>
                         <Crown size={28} color="#3f3f46" />
                         <p style={{ margin: 0, fontSize: '13px', color: '#71717a' }}>No active subscriptions</p>
@@ -115,7 +134,7 @@ export default function ProfilePage() {
             </Card>
 
             {/* Partner */}
-            {user?.role === 'partner' && (
+            {role === 'partner' && (
                 <Card glow>
                     <CardHeader><CardTitle>Partner Earnings</CardTitle><Badge value="partner" /></CardHeader>
                     <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px' }}>
