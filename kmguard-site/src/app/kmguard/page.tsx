@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
+import { FeatureCard } from '@/components/ui/feature-card'
 import { ShieldCheck, Zap, Eye, Cpu, Lock, RefreshCw } from 'lucide-react'
 
 const features = [
@@ -57,7 +58,6 @@ export default function HomePage() {
                     </Link>
                 </div>
 
-                {/* Ambient glow */}
                 <div style={{
                     position: 'absolute', top: '60px', left: '50%', transform: 'translateX(-50%)',
                     width: '400px', height: '400px', borderRadius: '50%',
@@ -87,27 +87,8 @@ export default function HomePage() {
                     <p style={{ margin: '6px 0 0', fontSize: '13px', color: '#71717a' }}>Built for competitive players who demand reliability</p>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
-                    {features.map(({ icon: Icon, title, desc }) => (
-                        <div key={title} style={{
-                            display: 'flex', flexDirection: 'column', gap: '12px',
-                            borderRadius: '12px', border: '1px solid #1c1c1f', background: '#111113',
-                            padding: '20px', transition: 'border-color 0.2s',
-                        }}
-                            onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(34,197,94,0.3)')}
-                            onMouseLeave={e => (e.currentTarget.style.borderColor = '#1c1c1f')}
-                        >
-                            <div style={{
-                                width: '36px', height: '36px', borderRadius: '8px',
-                                background: 'rgba(34,197,94,0.1)', display: 'flex',
-                                alignItems: 'center', justifyContent: 'center',
-                            }}>
-                                <Icon size={17} color="#22c55e" />
-                            </div>
-                            <div>
-                                <div style={{ fontSize: '13px', fontWeight: 600, color: '#fafafa' }}>{title}</div>
-                                <div style={{ marginTop: '4px', fontSize: '12px', color: '#71717a', lineHeight: 1.55 }}>{desc}</div>
-                            </div>
-                        </div>
+                    {features.map(f => (
+                        <FeatureCard key={f.title} icon={f.icon} title={f.title} desc={f.desc} />
                     ))}
                 </div>
             </section>
