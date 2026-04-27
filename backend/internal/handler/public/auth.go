@@ -108,10 +108,27 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 
 func (h *AuthHandler) Me(c *fiber.Ctx) error {
 	claims := c.Locals(middleware.ClaimsKey()).(*token.Claims)
+	schema := c.Locals(middleware.SchemaKey()).(string)
+
+	user, err := h.svc.GetUserByID(c.Context(), schema, claims.UserID)
+	if err != nil {
+		log.Printf("[Me] schema=%s user_id=%s err=%v", schema, claims.UserID, err)
+		// fallback: вернуть хотя бы данные из claims
+		return c.JSON(fiber.Map{
+			"id":        claims.UserID,
+			"username":  "",
+			"email":     "",
+			"role":      claims.Role,
+			"tenant_id": claims.TenantID,
+		})
+	}
+
 	return c.JSON(fiber.Map{
-		"user_id":   claims.UserID,
+		"id":        user.ID,
+		"username":  user.Username,
+		"email":     user.Email,
+		"role":      user.Role,
 		"tenant_id": claims.TenantID,
-		"role":      claims.Role,
 	})
 }
 

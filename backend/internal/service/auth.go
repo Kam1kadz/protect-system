@@ -79,6 +79,11 @@ func (s *AuthService) Refresh(ctx context.Context, rawRefresh, tenantID string) 
 	return s.issueTokens(claims.UserID, tenantID, claims.Role)
 }
 
+// GetUserByID возвращает пользователя по ID из БД
+func (s *AuthService) GetUserByID(ctx context.Context, schema, userID string) (*model.User, error) {
+	return s.users.FindByID(ctx, schema, userID)
+}
+
 func (s *AuthService) issueTokens(userID, tenantID, role string) (*TokenPair, error) {
 	access, err := token.SignAccess(userID, tenantID, role, s.cfg.JWTAccessTTL, s.cfg.JWTAccessSecret)
 	if err != nil {
