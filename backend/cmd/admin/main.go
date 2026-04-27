@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
@@ -57,7 +58,6 @@ func main() {
 			return c.Status(400).JSON(fiber.Map{"error": "bad request"})
 		}
 
-		// Создаём схему и таблицы тенанта
 		if err := db.ProvisionTenant(c.Context(), pool, body.Slug); err != nil {
 			return c.Status(500).JSON(fiber.Map{"error": "provision failed: " + err.Error()})
 		}
@@ -78,6 +78,49 @@ func main() {
 			return c.Status(500).JSON(fiber.Map{"error": "delete failed"})
 		}
 		return c.SendStatus(204)
+	})
+
+	// POST /api/superadmin/tenants/:slug/plans
+	v1.Post("/tenants/:slug/plans", func(c *fiber.Ctx) error {
+		slug := c.Params("slug")
+		schema := "tenant_" + slug
+
+		var body struct {
+			Name        string `json:"name"`
+			DisplayName string `json:"display_name"`
+			SortOrder   int    `json:"sort_order"`
+			Tiers       []struct {
+				DurationDays int     `json:"duration_days"`
+				Price        float64 `json:"price"`
+				Currency     string  `json:"currency"`
+			} `json:"tiers"`
+		}
+		if err := c.BodyParser(&body); err != nil || body.Name == "" {
+			return c.Status(400).JSON(fiber.Map{"error": "bad request"})
+		}
+
+		var planID string
+		err := pool.QueryRow(c.Context(), fmt.Sprintf(
+			`INSERT INTO %s.subscription_plans (id, name, display_name, sort_order, is_active)
+			 VALUES (gen_random_uuid(), $1, $2, $3, true) RETURNING id`, schema),
+			body.Name, body.DisplayName, body.SortOrder,
+		).Scan(&planID)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "insert plan: " + err.Error()})
+		}
+
+		for _, t := range body.Tiers {
+			_, err := pool.Exec(c.Context(), fmt.Sprintf(
+				`INSERT INTO %s.plan_tiers (id, plan_id, duration_days, price, currency, is_active)
+				 VALUES (gen_random_uuid(), $1, $2, $3, $4, true)`, schema),
+				planID, t.DurationDays, t.Price, t.Currency,
+			)
+			if err != nil {
+				return c.Status(500).JSON(fiber.Map{"error": "insert tier: " + err.Error()})
+			}
+		}
+
+		return c.Status(201).JSON(fiber.Map{"plan_id": planID, "tiers": len(body.Tiers)})
 	})
 
 	v1.Get("/health", func(c *fiber.Ctx) error {
