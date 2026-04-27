@@ -79,7 +79,7 @@ function createClient(): AxiosInstance {
 
 export const api = createClient()
 
-// ── Auth ──────────────────────────────────────────────────────────────────────────────────
+// ── Auth ──────────────────────────────────────────────────────────────────────
 
 export const authApi = {
     login: (email: string, password: string) =>
@@ -98,7 +98,7 @@ export const authApi = {
         api.post('/api/v1/auth/refresh'),
 }
 
-// ── Admin ───────────────────────────────────────────────────────────────────────────────
+// ── Admin ─────────────────────────────────────────────────────────────────────
 
 export const adminApi = {
     stats: () =>
@@ -133,6 +133,25 @@ export const adminApi = {
 
     revokeLic: (id: string) =>
         api.delete(`/api/v1/admin/licenses/${id}`),
+
+    // Plans CRUD
+    plans: () =>
+        api.get('/api/v1/admin/plans'),
+
+    createPlan: (data: { name: string; display_name: string; sort_order?: number }) =>
+        api.post('/api/v1/admin/plans', data),
+
+    updatePlan: (id: string, data: { display_name?: string; is_active?: boolean; sort_order?: number }) =>
+        api.patch(`/api/v1/admin/plans/${id}`, data),
+
+    deletePlan: (id: string) =>
+        api.delete(`/api/v1/admin/plans/${id}`),
+
+    addTier: (planId: string, data: { duration_days: number; price: number; currency: string }) =>
+        api.post(`/api/v1/admin/plans/${planId}/tiers`, data),
+
+    deleteTier: (planId: string, tierId: string) =>
+        api.delete(`/api/v1/admin/plans/${planId}/tiers/${tierId}`),
 
     keys: () =>
         api.get('/api/v1/admin/keys'),
@@ -204,7 +223,7 @@ export const adminApi = {
     }) => api.post('/api/v1/admin/roles', data),
 }
 
-// ── Store (public) ──────────────────────────────────────────────────────────────────
+// ── Store (public) ────────────────────────────────────────────────────────────
 
 export const storeApi = {
     plans: () =>
@@ -220,7 +239,7 @@ export const storeApi = {
         api.get(`/api/v1/store/promo/${encodeURIComponent(code)}`),
 }
 
-// ── Profile (public) ──────────────────────────────────────────────────────────────────
+// ── Profile ───────────────────────────────────────────────────────────────────
 
 export const profileApi = {
     licenses: () =>

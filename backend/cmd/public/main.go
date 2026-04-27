@@ -92,7 +92,7 @@ func main() {
 
 	v1 := app.Group("/api/v1")
 
-	// ── Auth ────────────────────────────────────────────────────────────────────────────
+	// ── Auth ─────────────────────────────────────────────────────────────────
 	auth := v1.Group("/auth")
 	auth.Use(middleware.RateLimit(redisClient, "auth", 10, time.Minute))
 	auth.Post("/register", authH.Register)
@@ -121,7 +121,7 @@ func main() {
 		storeH.Activate,
 	)
 
-	// ── Loader (protected by maintenance) ─────────────────────────────────────────
+	// ── Loader ────────────────────────────────────────────────────────────────
 	loader := v1.Group("/loader")
 	loader.Use(middleware.MaintenanceGuard(pool))
 	loader.Use(middleware.RateLimit(redisClient, "loader", 30, time.Minute))
@@ -133,7 +133,7 @@ func main() {
 	loader.Post("/heartbeat", loaderH.Heartbeat)
 	loader.Post("/revoke",    loaderH.Revoke)
 
-	// ── Runtime (protected by maintenance) ─────────────────────────────────────────
+	// ── Runtime ───────────────────────────────────────────────────────────────
 	rt := v1.Group("/runtime")
 	rt.Use(middleware.MaintenanceGuard(pool))
 	rt.Use(middleware.RateLimit(redisClient, "runtime", 60, time.Minute))
@@ -145,7 +145,13 @@ func main() {
 	rt.Post("/event",     runtimeH.ReportEvent)
 	rt.Post("/terminate", runtimeH.Terminate)
 
-	// ── Admin API ───────────────────────────────────────────────────────────────────
+	// ── Profile (user-facing) ─────────────────────────────────────────────────
+	profile := v1.Group("/profile")
+	profile.Use(middleware.JWTAuth(cfg.JWTAccessSecret, "access"))
+	profile.Get("/licenses", manageH.ProfileLicenses)
+	profile.Get("/earnings", manageH.ProfileEarnings)
+
+	// ── Admin API ─────────────────────────────────────────────────────────────
 	adm := v1.Group("/admin")
 	adm.Use(middleware.JWTAuth(cfg.JWTAccessSecret, "access"))
 	adm.Use(middleware.RequireRoles("admin", "support"))
@@ -171,6 +177,15 @@ func main() {
 	lics := adm.Group("/licenses")
 	lics.Get("/",       manageH.ListLicenses)
 	lics.Delete("/:id", manageH.RevokeLicense)
+
+	// ── Plans CRUD ────────────────────────────────────────────────────────────
+	plans := adm.Group("/plans")
+	plans.Get("/",                          manageH.ListPlans)
+	plans.Post("/",       middleware.RequireRoles("admin"), manageH.CreatePlan)
+	plans.Patch("/:id",   middleware.RequireRoles("admin"), manageH.UpdatePlan)
+	plans.Delete("/:id",  middleware.RequireRoles("admin"), manageH.DeletePlan)
+	plans.Post("/:id/tiers",              middleware.RequireRoles("admin"), manageH.AddTier)
+	plans.Delete("/:id/tiers/:tier_id",   middleware.RequireRoles("admin"), manageH.DeleteTier)
 
 	keys := adm.Group("/keys")
 	keys.Get("/",       manageH.ListKeys)

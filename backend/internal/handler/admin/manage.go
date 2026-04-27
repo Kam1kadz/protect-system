@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/ps/backend/internal/crypto"
 	"github.com/ps/backend/internal/middleware"
+	"github.com/ps/backend/internal/token"
 )
 
 type ManageHandler struct {
@@ -16,6 +17,11 @@ type ManageHandler struct {
 
 func NewManageHandler(db *pgxpool.Pool) *ManageHandler {
 	return &ManageHandler{db: db}
+}
+
+func claims(c *fiber.Ctx) *token.Claims {
+	v, _ := c.Locals(middleware.ClaimsKey()).(*token.Claims)
+	return v
 }
 
 // ── Stats ─────────────────────────────────────────────────────────────────────
@@ -74,7 +80,7 @@ func (h *ManageHandler) ListUsers(c *fiber.Ctx) error {
 		s, where,
 	), args...)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "db error"})
+		return c.Status(500).JSON(fiber.Map{"error": "db error: " + err.Error()})
 	}
 	defer rows.Close()
 
@@ -103,6 +109,9 @@ func (h *ManageHandler) ListUsers(c *fiber.Ctx) error {
 			u.LastSeen = &t
 		}
 		users = append(users, u)
+	}
+	if users == nil {
+		users = []UserRow{}
 	}
 	return c.JSON(fiber.Map{"users": users})
 }
@@ -200,7 +209,7 @@ func (h *ManageHandler) GiveSubscription(c *fiber.Ctx) error {
 		s,
 	), userID, body.PlanID, tierID, licKey, secret, expAt)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "db error"})
+		return c.Status(500).JSON(fiber.Map{"error": "db error: " + err.Error()})
 	}
 	return c.Status(201).JSON(fiber.Map{"license_key": licKey})
 }
@@ -249,6 +258,9 @@ func (h *ManageHandler) ListLicenses(c *fiber.Ctx) error {
 		r.CreatedAt = ca.Format(time.RFC3339)
 		list = append(list, r)
 	}
+	if list == nil {
+		list = []LicRow{}
+	}
 	return c.JSON(fiber.Map{"licenses": list})
 }
 
@@ -262,6 +274,174 @@ func (h *ManageHandler) RevokeLicense(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": "db error"})
 	}
 	return c.JSON(fiber.Map{"ok": true})
+}
+
+// ── Plans CRUD ────────────────────────────────────────────────────────────────
+
+func (h *ManageHandler) ListPlans(c *fiber.Ctx) error {
+	schema := c.Locals(middleware.SchemaKey()).(string)
+	s, _ := safeSchema(schema)
+
+	rows, err := h.db.Query(c.Context(), fmt.Sprintf(
+		`SELECT sp.id, sp.name, sp.display_name, sp.is_active, sp.sort_order,
+		        pt.id, pt.duration_days, pt.price, pt.currency
+		 FROM %s.subscription_plans sp
+		 LEFT JOIN %s.plan_tiers pt ON pt.plan_id = sp.id AND pt.is_active = true
+		 ORDER BY sp.sort_order, pt.duration_days`, s, s))
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "db error: " + err.Error()})
+	}
+	defer rows.Close()
+
+	type Tier struct {
+		ID           string  `json:"id"`
+		DurationDays int     `json:"duration_days"`
+		Price        float64 `json:"price"`
+		Currency     string  `json:"currency"`
+	}
+	type Plan struct {
+		ID          string `json:"id"`
+		Name        string `json:"name"`
+		DisplayName string `json:"display_name"`
+		IsActive    bool   `json:"is_active"`
+		SortOrder   int    `json:"sort_order"`
+		Tiers       []Tier `json:"tiers"`
+	}
+
+	plansMap := map[string]*Plan{}
+	var order []string
+	for rows.Next() {
+		var pID, pName, pDisplay string
+		var pActive bool
+		var pSort int
+		var tID *string
+		var tDays *int
+		var tPrice *float64
+		var tCur *string
+		if err := rows.Scan(&pID, &pName, &pDisplay, &pActive, &pSort, &tID, &tDays, &tPrice, &tCur); err != nil {
+			continue
+		}
+		if _, ok := plansMap[pID]; !ok {
+			plansMap[pID] = &Plan{ID: pID, Name: pName, DisplayName: pDisplay, IsActive: pActive, SortOrder: pSort, Tiers: []Tier{}}
+			order = append(order, pID)
+		}
+		if tID != nil {
+			plansMap[pID].Tiers = append(plansMap[pID].Tiers, Tier{ID: *tID, DurationDays: *tDays, Price: *tPrice, Currency: *tCur})
+		}
+	}
+
+	result := make([]*Plan, 0, len(order))
+	for _, id := range order {
+		result = append(result, plansMap[id])
+	}
+	return c.JSON(fiber.Map{"plans": result})
+}
+
+func (h *ManageHandler) CreatePlan(c *fiber.Ctx) error {
+	schema := c.Locals(middleware.SchemaKey()).(string)
+	s, _ := safeSchema(schema)
+
+	var body struct {
+		Name        string `json:"name"`
+		DisplayName string `json:"display_name"`
+		SortOrder   int    `json:"sort_order"`
+	}
+	if err := c.BodyParser(&body); err != nil || body.Name == "" || body.DisplayName == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "name and display_name required"})
+	}
+
+	var id string
+	err := h.db.QueryRow(c.Context(), fmt.Sprintf(
+		`INSERT INTO %s.subscription_plans (id, name, display_name, sort_order, is_active)
+		 VALUES (gen_random_uuid(), $1, $2, $3, true) RETURNING id`, s),
+		body.Name, body.DisplayName, body.SortOrder,
+	).Scan(&id)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "db error: " + err.Error()})
+	}
+	return c.Status(201).JSON(fiber.Map{"id": id, "name": body.Name, "display_name": body.DisplayName})
+}
+
+func (h *ManageHandler) UpdatePlan(c *fiber.Ctx) error {
+	schema := c.Locals(middleware.SchemaKey()).(string)
+	s, _ := safeSchema(schema)
+	planID := c.Params("id")
+
+	var body struct {
+		DisplayName string `json:"display_name"`
+		IsActive    *bool  `json:"is_active"`
+		SortOrder   *int   `json:"sort_order"`
+	}
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "bad request"})
+	}
+
+	_, err := h.db.Exec(c.Context(), fmt.Sprintf(
+		`UPDATE %s.subscription_plans
+		 SET display_name = COALESCE(NULLIF($1,''), display_name),
+		     is_active    = COALESCE($2, is_active),
+		     sort_order   = COALESCE($3, sort_order),
+		     updated_at   = NOW()
+		 WHERE id = $4`, s),
+		body.DisplayName, body.IsActive, body.SortOrder, planID)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "db error"})
+	}
+	return c.JSON(fiber.Map{"ok": true})
+}
+
+func (h *ManageHandler) DeletePlan(c *fiber.Ctx) error {
+	schema := c.Locals(middleware.SchemaKey()).(string)
+	s, _ := safeSchema(schema)
+	planID := c.Params("id")
+
+	_, err := h.db.Exec(c.Context(), fmt.Sprintf(
+		`DELETE FROM %s.subscription_plans WHERE id = $1`, s), planID)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "db error"})
+	}
+	return c.SendStatus(204)
+}
+
+func (h *ManageHandler) AddTier(c *fiber.Ctx) error {
+	schema := c.Locals(middleware.SchemaKey()).(string)
+	s, _ := safeSchema(schema)
+	planID := c.Params("id")
+
+	var body struct {
+		DurationDays int     `json:"duration_days"`
+		Price        float64 `json:"price"`
+		Currency     string  `json:"currency"`
+	}
+	if err := c.BodyParser(&body); err != nil || body.DurationDays <= 0 {
+		return c.Status(400).JSON(fiber.Map{"error": "bad request"})
+	}
+	if body.Currency == "" {
+		body.Currency = "USD"
+	}
+
+	var id string
+	err := h.db.QueryRow(c.Context(), fmt.Sprintf(
+		`INSERT INTO %s.plan_tiers (id, plan_id, duration_days, price, currency, is_active)
+		 VALUES (gen_random_uuid(), $1, $2, $3, $4, true) RETURNING id`, s),
+		planID, body.DurationDays, body.Price, body.Currency,
+	).Scan(&id)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "db error: " + err.Error()})
+	}
+	return c.Status(201).JSON(fiber.Map{"id": id})
+}
+
+func (h *ManageHandler) DeleteTier(c *fiber.Ctx) error {
+	schema := c.Locals(middleware.SchemaKey()).(string)
+	s, _ := safeSchema(schema)
+
+	_, err := h.db.Exec(c.Context(), fmt.Sprintf(
+		`DELETE FROM %s.plan_tiers WHERE id = $1`, s), c.Params("tier_id"))
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "db error"})
+	}
+	return c.SendStatus(204)
 }
 
 // ── Keys ──────────────────────────────────────────────────────────────────────
@@ -310,13 +490,21 @@ func (h *ManageHandler) ListKeys(c *fiber.Ctx) error {
 		}
 		list = append(list, r)
 	}
+	if list == nil {
+		list = []KeyRow{}
+	}
 	return c.JSON(fiber.Map{"keys": list})
 }
 
 func (h *ManageHandler) GenerateKeys(c *fiber.Ctx) error {
 	schema := c.Locals(middleware.SchemaKey()).(string)
 	s, _ := safeSchema(schema)
-	adminID := c.Locals("user_id").(string)
+	// Fix: get admin user ID from JWT claims, not from missing "user_id" local
+	cl := claims(c)
+	var adminID string
+	if cl != nil {
+		adminID = cl.UserID
+	}
 
 	var body struct {
 		PlanID string `json:"plan_id"`
@@ -410,6 +598,9 @@ func (h *ManageHandler) ListPromo(c *fiber.Ctx) error {
 		}
 		list = append(list, r)
 	}
+	if list == nil {
+		list = []PromoRow{}
+	}
 	return c.JSON(fiber.Map{"promos": list})
 }
 
@@ -426,7 +617,7 @@ func (h *ManageHandler) CreatePromo(c *fiber.Ctx) error {
 		ExpiresAt   string `json:"expires_at"`
 	}
 	if err := c.BodyParser(&body); err != nil || body.Code == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "bad request"})
+		return c.Status(400).JSON(fiber.Map{"error": "code required"})
 	}
 
 	var partnerID *string
@@ -446,7 +637,7 @@ func (h *ManageHandler) CreatePromo(c *fiber.Ctx) error {
 		 VALUES ($1, $2, $3, $4, $5, $6)`, s),
 		body.Code, partnerID, body.DiscountPct, body.PartnerPct, body.UsesMax, expiresAt)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "code already exists or db error"})
+		return c.Status(500).JSON(fiber.Map{"error": "code already exists or db error: " + err.Error()})
 	}
 	return c.Status(201).JSON(fiber.Map{"ok": true})
 }
@@ -499,6 +690,9 @@ func (h *ManageHandler) ListEvents(c *fiber.Ctx) error {
 			"ip_address": ip, "created_at": ca.Format(time.RFC3339),
 		})
 	}
+	if list == nil {
+		list = []fiber.Map{}
+	}
 	return c.JSON(fiber.Map{"events": list})
 }
 
@@ -538,6 +732,9 @@ func (h *ManageHandler) ListTransactions(c *fiber.Ctx) error {
 		}
 		list = append(list, m)
 	}
+	if list == nil {
+		list = []fiber.Map{}
+	}
 	return c.JSON(fiber.Map{"transactions": list})
 }
 
@@ -576,6 +773,9 @@ func (h *ManageHandler) ListEarnings(c *fiber.Ctx) error {
 			m["paid_at"] = paid.Format(time.RFC3339)
 		}
 		list = append(list, m)
+	}
+	if list == nil {
+		list = []fiber.Map{}
 	}
 	return c.JSON(fiber.Map{"earnings": list})
 }
@@ -627,6 +827,9 @@ func (h *ManageHandler) ListLogs(c *fiber.Ctx) error {
 			"severity": severity, "ip_address": ip,
 			"payload": string(payload), "created_at": ca.Format(time.RFC3339),
 		})
+	}
+	if list == nil {
+		list = []fiber.Map{}
 	}
 	return c.JSON(fiber.Map{"logs": list})
 }
@@ -704,6 +907,9 @@ func (h *ManageHandler) ListRoles(c *fiber.Ctx) error {
 			"role_name": name, "permissions": string(perms), "is_system": isSystem,
 		})
 	}
+	if list == nil {
+		list = []fiber.Map{}
+	}
 	return c.JSON(fiber.Map{"roles": list})
 }
 
@@ -730,6 +936,93 @@ func (h *ManageHandler) UpsertRole(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": "cannot modify system role or db error"})
 	}
 	return c.JSON(fiber.Map{"ok": true})
+}
+
+// ── Profile (user-facing) ─────────────────────────────────────────────────────
+
+func (h *ManageHandler) ProfileLicenses(c *fiber.Ctx) error {
+	schema := c.Locals(middleware.SchemaKey()).(string)
+	s, _ := safeSchema(schema)
+	cl := claims(c)
+	if cl == nil {
+		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+	}
+
+	rows, err := h.db.Query(c.Context(), fmt.Sprintf(
+		`SELECT l.id, sp.display_name, sp.name, l.status, l.expires_at, l.license_key, l.created_at
+		 FROM %s.licenses l
+		 JOIN %s.subscription_plans sp ON sp.id = l.plan_id
+		 WHERE l.user_id = $1
+		 ORDER BY l.created_at DESC`, s, s), cl.UserID)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "db error"})
+	}
+	defer rows.Close()
+
+	type LicRow struct {
+		ID          string `json:"id"`
+		PlanDisplay string `json:"plan_display"`
+		PlanName    string `json:"plan_name"`
+		Status      string `json:"status"`
+		ExpiresAt   string `json:"expires_at"`
+		LicenseKey  string `json:"license_key"`
+		CreatedAt   string `json:"created_at"`
+	}
+
+	var list []LicRow
+	for rows.Next() {
+		var r LicRow
+		var exp, ca time.Time
+		if err := rows.Scan(&r.ID, &r.PlanDisplay, &r.PlanName, &r.Status, &exp, &r.LicenseKey, &ca); err != nil {
+			continue
+		}
+		r.ExpiresAt = exp.Format(time.RFC3339)
+		r.CreatedAt = ca.Format(time.RFC3339)
+		list = append(list, r)
+	}
+	if list == nil {
+		list = []LicRow{}
+	}
+	return c.JSON(fiber.Map{"licenses": list})
+}
+
+func (h *ManageHandler) ProfileEarnings(c *fiber.Ctx) error {
+	schema := c.Locals(middleware.SchemaKey()).(string)
+	s, _ := safeSchema(schema)
+	cl := claims(c)
+	if cl == nil {
+		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+	}
+
+	rows, err := h.db.Query(c.Context(), fmt.Sprintf(
+		`SELECT id, amount, currency, is_paid, paid_at, created_at
+		 FROM %s.partner_earnings WHERE partner_id = $1
+		 ORDER BY created_at DESC`, s), cl.UserID)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "db error"})
+	}
+	defer rows.Close()
+
+	var list []fiber.Map
+	for rows.Next() {
+		var id, currency string
+		var amount float64
+		var isPaid bool
+		var ca time.Time
+		var paid *time.Time
+		if err := rows.Scan(&id, &amount, &currency, &isPaid, &paid, &ca); err != nil {
+			continue
+		}
+		m := fiber.Map{"id": id, "amount": amount, "currency": currency, "is_paid": isPaid, "created_at": ca.Format(time.RFC3339)}
+		if paid != nil {
+			m["paid_at"] = paid.Format(time.RFC3339)
+		}
+		list = append(list, m)
+	}
+	if list == nil {
+		list = []fiber.Map{}
+	}
+	return c.JSON(fiber.Map{"earnings": list})
 }
 
 func maxInt(a, b int) int {
