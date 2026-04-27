@@ -11,5 +11,5 @@ func safeSchema(slug string) (string, error) {
 	if !rePublicSchema.MatchString(slug) {
 		return "", fmt.Errorf("invalid schema: %s", slug)
 	}
-	return slug, nil
+	return "tenant_" + slug, nil
 }
