@@ -59,7 +59,6 @@ export default function AdminPayloadPage() {
             <div className="flex items-center justify-between">
                 <h1 className="text-2xl font-bold">JAR Payload</h1>
 
-                {/* MC version selector */}
                 <div className="flex gap-1 rounded-lg border border-[--border] bg-[--surface] p-1">
                     {MC_VERSIONS.map(v => (
                         <button
@@ -101,7 +100,6 @@ export default function AdminPayloadPage() {
                 ))}
             </div>
 
-            {/* Hidden global file input */}
             <input
                 ref={fileRef}
                 type="file"
@@ -114,9 +112,9 @@ export default function AdminPayloadPage() {
 }
 
 function PayloadCard({
-                         plan, mcVersion, uploading, deleting,
-                         onUploadClick, onDelete, onChange, fileRef,
-                     }: {
+    plan, mcVersion, uploading, deleting,
+    onUploadClick, onDelete, onChange, fileRef,
+}: {
     plan:          Plan
     mcVersion:     string
     uploading:     boolean
@@ -124,7 +122,7 @@ function PayloadCard({
     onUploadClick: () => void
     onDelete:      () => void
     onChange:      (e: React.ChangeEvent<HTMLInputElement>) => void
-    fileRef?:      React.RefObject<HTMLInputElement>
+    fileRef?:      React.RefObject<HTMLInputElement | null>
 }) {
     const { data: status } = useQuery({
         queryKey: ['payload-status', plan.id, mcVersion],
@@ -150,15 +148,15 @@ function PayloadCard({
                         : <div className="h-4 w-4 rounded-full border-2 border-[--muted]"/>
                     }
                     <span className="text-sm">
-            {hasPayload
-                ? <><span className="text-emerald-400">Payload ready</span>
-                    <span className="ml-2 font-mono text-xs text-[--muted]">
-                    {status?.hash?.slice(0, 12)}…
-                  </span>
-                </>
-                : <span className="text-[--muted]">No payload</span>
-            }
-          </span>
+                        {hasPayload
+                            ? <><span className="text-emerald-400">Payload ready</span>
+                                <span className="ml-2 font-mono text-xs text-[--muted]">
+                                    {status?.hash?.slice(0, 12)}…
+                                </span>
+                              </>
+                            : <span className="text-[--muted]">No payload</span>
+                        }
+                    </span>
                 </div>
 
                 <div className="flex gap-2">
