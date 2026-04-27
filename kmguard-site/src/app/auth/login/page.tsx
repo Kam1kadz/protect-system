@@ -22,7 +22,7 @@ export default function LoginPage() {
         try {
             const res = await authApi.login(email, password)
             setToken(res.data.access_token)
-            const me  = await authApi.me()
+            const me = await authApi.me()
             setUser(me.data)
             router.push('/kmguard/profile')
         } catch {
@@ -33,51 +33,48 @@ export default function LoginPage() {
     }
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-[--bg] px-4">
-            <div className="w-full max-w-sm">
+        <div style={{
+            minHeight: '100vh', background: '#09090b',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px',
+        }}>
+            <div style={{ width: '100%', maxWidth: '360px' }}>
 
                 {/* Logo */}
-                <div className="flex flex-col items-center gap-3 mb-8">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[--accent]/15">
-                        <ShieldCheck size={24} className="text-[--accent]" />
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', marginBottom: '32px' }}>
+                    <div style={{
+                        width: '48px', height: '48px', borderRadius: '14px',
+                        background: 'rgba(34,197,94,0.12)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                        <ShieldCheck size={24} color="#22c55e" />
                     </div>
-                    <div className="text-center">
-                        <h1 className="font-bold text-lg">Welcome back</h1>
-                        <p className="text-xs text-[--muted] mt-0.5">Sign in to your Arbuz Client account</p>
+                    <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontWeight: 700, fontSize: '17px' }}>Welcome back</div>
+                        <div style={{ fontSize: '12px', color: '#71717a', marginTop: '3px' }}>Sign in to your Arbuz Client account</div>
                     </div>
                 </div>
 
-                <div className="rounded-2xl border border-[--border] bg-[--surface] p-6">
-                    <form onSubmit={submit} className="flex flex-col gap-4">
-                        <Input
-                            label="Email"
-                            type="email"
-                            placeholder="you@example.com"
-                            value={email}
-                            onChange={e => setEmail(e.target.value)}
-                            required
-                            autoComplete="email"
-                        />
-                        <Input
-                            label="Password"
-                            type="password"
-                            placeholder="••••••••"
-                            value={password}
-                            onChange={e => setPassword(e.target.value)}
-                            required
-                            autoComplete="current-password"
-                        />
-                        <Button type="submit" loading={loading} className="mt-1 w-full">Sign In</Button>
+                <div style={{
+                    borderRadius: '16px', border: '1px solid #1c1c1f',
+                    background: '#111113', padding: '24px',
+                }}>
+                    <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <Input label="Email" type="email" placeholder="you@example.com"
+                            value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email" />
+                        <Input label="Password" type="password" placeholder="••••••••"
+                            value={password} onChange={e => setPassword(e.target.value)} required autoComplete="current-password" />
+                        <div style={{ marginTop: '4px' }}>
+                            <Button type="submit" loading={loading} style={{ width: '100%' }}>Sign In</Button>
+                        </div>
                     </form>
-
-                    <p className="mt-4 text-center text-xs text-[--muted]">
+                    <p style={{ margin: '16px 0 0', textAlign: 'center', fontSize: '12px', color: '#71717a' }}>
                         No account?{' '}
-                        <Link href="/auth/register" className="text-[--accent] hover:underline">Create one</Link>
+                        <Link href="/auth/register" style={{ color: '#22c55e', textDecoration: 'none' }}>Create one</Link>
                     </p>
                 </div>
 
-                <p className="mt-4 text-center text-xs text-[--muted-2]">
-                    <Link href="/kmguard" className="hover:text-[--muted]">← Back to home</Link>
+                <p style={{ marginTop: '16px', textAlign: 'center', fontSize: '12px' }}>
+                    <Link href="/kmguard" style={{ color: '#52525b', textDecoration: 'none' }}>← Back to home</Link>
                 </p>
             </div>
         </div>

@@ -4,17 +4,17 @@ import { Toaster } from 'sonner'
 import { Providers } from './providers'
 import './globals.css'
 
-const inter = Inter({ subsets: ['latin'] })
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 
 export const metadata: Metadata = {
-    title:       process.env.NEXT_PUBLIC_SITE_NAME ?? 'KMGuard',
-    description: 'Premium Minecraft Client',
+    title: 'Arbuz Client',
+    description: 'Premium Minecraft Cheat Client — Undetected, Fast, Feature-rich',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
     return (
-        <html lang="en" className="dark">
-        <body className={`${inter.className} bg-[#0d0d0f] text-white antialiased`}>
+        <html lang="en">
+        <body className={`${inter.variable} antialiased`} style={{ background: '#09090b', color: '#fafafa', margin: 0 }}>
         <Providers>
             {children}
         </Providers>

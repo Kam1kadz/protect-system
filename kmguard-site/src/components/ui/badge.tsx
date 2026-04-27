@@ -1,19 +1,24 @@
-const map: Record<string, string> = {
-    active:    'bg-green-500/15 text-green-400 border-green-500/25',
-    expired:   'bg-zinc-500/15 text-zinc-400 border-zinc-500/25',
-    revoked:   'bg-red-500/15 text-red-400 border-red-500/25',
-    banned:    'bg-red-500/15 text-red-400 border-red-500/25',
-    suspended: 'bg-orange-500/15 text-orange-400 border-orange-500/25',
-    admin:     'bg-purple-500/15 text-purple-400 border-purple-500/25',
-    support:   'bg-blue-500/15 text-blue-400 border-blue-500/25',
-    partner:   'bg-yellow-500/15 text-yellow-400 border-yellow-500/25',
-    user:      'bg-zinc-500/15 text-zinc-400 border-zinc-500/25',
+const map: Record<string, { bg: string; color: string; border: string }> = {
+    active:    { bg: 'rgba(34,197,94,0.12)',   color: '#4ade80', border: 'rgba(34,197,94,0.25)' },
+    expired:   { bg: 'rgba(113,113,122,0.12)', color: '#a1a1aa', border: 'rgba(113,113,122,0.25)' },
+    revoked:   { bg: 'rgba(239,68,68,0.12)',   color: '#f87171', border: 'rgba(239,68,68,0.25)' },
+    banned:    { bg: 'rgba(239,68,68,0.12)',   color: '#f87171', border: 'rgba(239,68,68,0.25)' },
+    suspended: { bg: 'rgba(249,115,22,0.12)',  color: '#fb923c', border: 'rgba(249,115,22,0.25)' },
+    admin:     { bg: 'rgba(168,85,247,0.12)',  color: '#c084fc', border: 'rgba(168,85,247,0.25)' },
+    support:   { bg: 'rgba(59,130,246,0.12)',  color: '#60a5fa', border: 'rgba(59,130,246,0.25)' },
+    partner:   { bg: 'rgba(234,179,8,0.12)',   color: '#facc15', border: 'rgba(234,179,8,0.25)' },
+    user:      { bg: 'rgba(113,113,122,0.12)', color: '#a1a1aa', border: 'rgba(113,113,122,0.25)' },
 }
 
 export function Badge({ value }: { value: string }) {
-    const cls = map[value?.toLowerCase()] ?? 'bg-zinc-500/15 text-zinc-400 border-zinc-500/25'
+    const s = map[value?.toLowerCase()] ?? map.user
     return (
-        <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${cls}`}>
+        <span style={{
+            display: 'inline-flex', alignItems: 'center',
+            borderRadius: '6px', border: `1px solid ${s.border}`,
+            background: s.bg, color: s.color,
+            padding: '2px 8px', fontSize: '11px', fontWeight: 500,
+        }}>
             {value}
         </span>
     )

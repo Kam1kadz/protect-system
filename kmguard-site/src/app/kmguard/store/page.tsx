@@ -3,11 +3,12 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { Tag, Zap, Check } from 'lucide-react'
+import { Check, Zap, Tag } from 'lucide-react'
 import type { Plan } from '@/types'
+
+const PLAN_FEATURES = ['Anti-cheat bypass', 'All visual modules', 'Auto updates', 'Priority support', 'Discord access']
 
 export default function StorePage() {
     const [promoCode, setPromoCode] = useState('')
@@ -22,7 +23,7 @@ export default function StorePage() {
         setLoading(tierId)
         try {
             await api.post('/api/v1/store/activate', {
-                tier_id:    tierId,
+                tier_id: tierId,
                 promo_code: promoCode || undefined,
             })
             toast.success('Subscription activated! Check your profile.')
@@ -36,78 +37,84 @@ export default function StorePage() {
     const plans = data ?? []
 
     return (
-        <div className="flex flex-col gap-10 max-w-4xl mx-auto py-2">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '40px', maxWidth: '960px', margin: '0 auto' }}>
 
             {/* Header */}
-            <div className="text-center">
-                <h1 className="text-3xl font-bold">Choose Your Plan</h1>
-                <p className="mt-2 text-[--muted] text-sm">Unlock the full power of Arbuz Client</p>
+            <div style={{ textAlign: 'center' }}>
+                <h1 style={{ margin: 0, fontSize: '32px', fontWeight: 800, letterSpacing: '-0.02em' }}>Choose Your Plan</h1>
+                <p style={{ margin: '8px 0 0', fontSize: '14px', color: '#71717a' }}>Unlock the full power of Arbuz Client</p>
             </div>
 
-            {/* Promo code */}
-            <div className="flex max-w-xs mx-auto w-full gap-2">
-                <Input
-                    placeholder="Promo code"
-                    value={promoCode}
-                    onChange={e => setPromoCode(e.target.value)}
-                />
-                <Button variant="secondary" size="md">
-                    <Tag size={13} /> Apply
+            {/* Promo */}
+            <div style={{ display: 'flex', maxWidth: '320px', margin: '0 auto', width: '100%', gap: '8px' }}>
+                <Input placeholder="Promo code" value={promoCode} onChange={e => setPromoCode(e.target.value)} />
+                <Button variant="secondary" size="md" style={{ flexShrink: 0 }}>
+                    <Tag size={12} /> Apply
                 </Button>
             </div>
 
             {/* Plans */}
             {isLoading ? (
-                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
                     {[1,2,3].map(i => (
-                        <div key={i} className="h-64 rounded-xl bg-[--surface] animate-pulse border border-[--border]" />
+                        <div key={i} style={{ height: '300px', borderRadius: '12px', background: '#111113', border: '1px solid #1c1c1f' }} />
                     ))}
                 </div>
             ) : plans.length === 0 ? (
-                <div className="text-center py-16 text-[--muted] text-sm">No plans available yet.</div>
+                <div style={{ textAlign: 'center', padding: '80px 0', fontSize: '13px', color: '#71717a' }}>
+                    No plans available yet. Check back soon.
+                </div>
             ) : (
-                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(plans.length, 3)}, 1fr)`, gap: '16px' }}>
                     {plans.map((plan, idx) => {
-                        const popular = idx === 1
+                        const popular = idx === Math.floor(plans.length / 2)
                         return (
-                            <div
-                                key={plan.id}
-                                className={`relative flex flex-col rounded-xl border bg-[--surface] overflow-hidden transition-all hover:-translate-y-0.5 ${
-                                    popular
-                                        ? 'border-[--accent]/50 shadow-lg shadow-[--accent]/10'
-                                        : 'border-[--border]'
-                                }`}
-                            >
+                            <div key={plan.id} style={{
+                                position: 'relative', display: 'flex', flexDirection: 'column',
+                                borderRadius: '12px', overflow: 'hidden',
+                                border: `1px solid ${popular ? 'rgba(34,197,94,0.4)' : '#1c1c1f'}`,
+                                background: '#111113',
+                                boxShadow: popular ? '0 0 32px rgba(34,197,94,0.08)' : 'none',
+                                transform: popular ? 'scale(1.02)' : 'none',
+                                transition: 'transform 0.2s',
+                            }}>
                                 {popular && (
-                                    <div className="flex items-center justify-center gap-1.5 bg-[--accent] py-1.5 text-xs font-semibold text-black">
-                                        <Zap size={11} fill="currentColor" /> Most Popular
+                                    <div style={{
+                                        background: '#22c55e', color: '#000',
+                                        padding: '6px', textAlign: 'center',
+                                        fontSize: '11px', fontWeight: 700,
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px',
+                                    }}>
+                                        <Zap size={10} fill="#000" /> Most Popular
                                     </div>
                                 )}
-                                <div className="flex flex-col gap-5 p-5">
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '20px' }}>
                                     <div>
-                                        <h3 className="font-bold text-base">{plan.display_name}</h3>
-                                        <p className="text-xs text-[--muted] mt-0.5">Full access to all features</p>
+                                        <div style={{ fontSize: '16px', fontWeight: 700 }}>{plan.display_name}</div>
+                                        <div style={{ fontSize: '12px', color: '#71717a', marginTop: '4px' }}>Full access · All features</div>
                                     </div>
 
-                                    <ul className="flex flex-col gap-1.5 text-xs text-[--text-2]">
-                                        {['Anti-cheat bypass', 'All visual modules', 'Auto updates', 'Priority support'].map(f => (
-                                            <li key={f} className="flex items-center gap-2">
-                                                <Check size={12} className="text-[--accent] shrink-0" />{f}
+                                    <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                        {PLAN_FEATURES.map(f => (
+                                            <li key={f} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#a1a1aa' }}>
+                                                <Check size={12} color="#22c55e" style={{ flexShrink: 0 }} />{f}
                                             </li>
                                         ))}
                                     </ul>
 
-                                    <div className="flex flex-col gap-2">
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                         {plan.tiers.map(tier => (
-                                            <div
-                                                key={tier.id}
-                                                className="flex items-center justify-between rounded-lg border border-[--border] bg-[--surface-2] px-3 py-2"
-                                            >
+                                            <div key={tier.id} style={{
+                                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                                borderRadius: '8px', border: '1px solid #27272a',
+                                                background: '#1c1c1f', padding: '10px 12px',
+                                            }}>
                                                 <div>
-                                                    <p className="text-sm font-semibold">
+                                                    <div style={{ fontSize: '15px', fontWeight: 700 }}>
                                                         {tier.currency} {tier.price.toFixed(2)}
-                                                    </p>
-                                                    <p className="text-xs text-[--muted]">{tier.duration_days} days</p>
+                                                    </div>
+                                                    <div style={{ fontSize: '11px', color: '#71717a' }}>{tier.duration_days} days</div>
                                                 </div>
                                                 <Button
                                                     size="sm"

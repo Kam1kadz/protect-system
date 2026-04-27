@@ -1,13 +1,13 @@
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { ShieldCheck, Zap, Eye, Cpu, Lock, RefreshCw, Users, Star } from 'lucide-react'
+import { ShieldCheck, Zap, Eye, Cpu, Lock, RefreshCw } from 'lucide-react'
 
 const features = [
-    { icon: ShieldCheck, title: 'Anti-Detection',   desc: 'Bypass techniques updated within 24h of any patch.' },
-    { icon: Zap,         title: 'High Performance', desc: 'Less than 2% FPS impact. Optimized native core.' },
+    { icon: ShieldCheck, title: 'Anti-Detection',   desc: 'Bypass updated within 24h of any AC patch.' },
+    { icon: Zap,         title: 'High Performance', desc: 'Under 2% FPS impact. Native optimized core.' },
     { icon: Eye,         title: 'Visual Modules',   desc: 'ESP, Tracers, Chams — fully customizable.' },
     { icon: Cpu,         title: 'Secure Loader',    desc: 'Encrypted delivery. Zero files left on disk.' },
-    { icon: Lock,        title: 'HWID Lock',        desc: 'Your license is bound to your hardware.' },
+    { icon: Lock,        title: 'HWID Lock',        desc: 'License is bound to your hardware ID.' },
     { icon: RefreshCw,   title: 'Auto Updates',     desc: 'Silent background updates, always latest.' },
 ]
 
@@ -20,62 +20,92 @@ const stats = [
 
 export default function HomePage() {
     return (
-        <div className="flex flex-col gap-24 py-12">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '80px', paddingTop: '20px' }} className="animate-fade-up">
 
             {/* Hero */}
-            <section className="flex flex-col items-center gap-8 text-center animate-fade-up">
-                <div className="inline-flex items-center gap-2 rounded-full border border-[--accent]/25 bg-[--accent-dim] px-4 py-1.5 text-xs font-medium text-[--accent]">
-                    <Star size={11} fill="currentColor" /> Premium Minecraft Client
+            <section style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '28px', textAlign: 'center', position: 'relative' }}>
+                <div style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '6px',
+                    borderRadius: '999px', border: '1px solid rgba(34,197,94,0.25)',
+                    background: 'rgba(34,197,94,0.08)', padding: '5px 14px',
+                    fontSize: '11px', fontWeight: 500, color: '#22c55e',
+                }}>
+                    ★ Premium Minecraft Client
                 </div>
 
-                <div className="flex flex-col gap-3">
-                    <h1 className="text-6xl font-bold tracking-tight bg-gradient-to-b from-white to-zinc-400 bg-clip-text text-transparent">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <h1 style={{
+                        margin: 0, fontSize: 'clamp(40px, 8vw, 72px)', fontWeight: 800,
+                        letterSpacing: '-0.03em', lineHeight: 1.05,
+                        background: 'linear-gradient(180deg, #ffffff 0%, #71717a 100%)',
+                        WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+                    }}>
                         Arbuz Client
                     </h1>
-                    <p className="text-lg text-[--muted] max-w-lg mx-auto leading-relaxed">
+                    <p style={{ margin: 0, fontSize: '16px', color: '#71717a', maxWidth: '480px', lineHeight: 1.65 }}>
                         The most advanced and undetected Minecraft cheat client.
                         Powerful features. Clean interface. Always updated.
                     </p>
                 </div>
 
-                <div className="flex gap-3">
-                    <Link href="/kmguard/store">
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                    <Link href="/kmguard/store" style={{ textDecoration: 'none' }}>
                         <Button size="lg">Get Started</Button>
                     </Link>
-                    <Link href="/auth/register">
+                    <Link href="/auth/register" style={{ textDecoration: 'none' }}>
                         <Button variant="outline" size="lg">Create Account</Button>
                     </Link>
                 </div>
 
-                {/* Glow orb */}
-                <div className="absolute left-1/2 top-32 -translate-x-1/2 h-64 w-64 rounded-full bg-[--accent]/5 blur-3xl pointer-events-none" />
+                {/* Ambient glow */}
+                <div style={{
+                    position: 'absolute', top: '60px', left: '50%', transform: 'translateX(-50%)',
+                    width: '400px', height: '400px', borderRadius: '50%',
+                    background: 'radial-gradient(circle, rgba(34,197,94,0.07) 0%, transparent 70%)',
+                    pointerEvents: 'none', zIndex: -1,
+                }} />
             </section>
 
             {/* Stats */}
-            <section className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <section style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
                 {stats.map(s => (
-                    <div key={s.label} className="flex flex-col items-center gap-1 rounded-xl border border-[--border] bg-[--surface] py-5">
-                        <span className="text-2xl font-bold text-[--accent]">{s.value}</span>
-                        <span className="text-xs text-[--muted]">{s.label}</span>
+                    <div key={s.label} style={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px',
+                        borderRadius: '12px', border: '1px solid #1c1c1f', background: '#111113',
+                        padding: '20px 12px',
+                    }}>
+                        <span style={{ fontSize: '26px', fontWeight: 700, color: '#22c55e' }}>{s.value}</span>
+                        <span style={{ fontSize: '11px', color: '#71717a' }}>{s.label}</span>
                     </div>
                 ))}
             </section>
 
             {/* Features */}
-            <section className="flex flex-col gap-6">
-                <div className="text-center">
-                    <h2 className="text-2xl font-bold">Everything you need</h2>
-                    <p className="mt-1 text-sm text-[--muted]">Built for competitive players who demand reliability</p>
+            <section style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                <div style={{ textAlign: 'center' }}>
+                    <h2 style={{ margin: 0, fontSize: '24px', fontWeight: 700 }}>Everything you need</h2>
+                    <p style={{ margin: '6px 0 0', fontSize: '13px', color: '#71717a' }}>Built for competitive players who demand reliability</p>
                 </div>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
                     {features.map(({ icon: Icon, title, desc }) => (
-                        <div key={title} className="group flex flex-col gap-3 rounded-xl border border-[--border] bg-[--surface] p-5 hover:border-[--accent]/30 transition-colors">
-                            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[--accent]/10 text-[--accent] group-hover:bg-[--accent]/20 transition-colors">
-                                <Icon size={18} />
+                        <div key={title} style={{
+                            display: 'flex', flexDirection: 'column', gap: '12px',
+                            borderRadius: '12px', border: '1px solid #1c1c1f', background: '#111113',
+                            padding: '20px', transition: 'border-color 0.2s',
+                        }}
+                            onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(34,197,94,0.3)')}
+                            onMouseLeave={e => (e.currentTarget.style.borderColor = '#1c1c1f')}
+                        >
+                            <div style={{
+                                width: '36px', height: '36px', borderRadius: '8px',
+                                background: 'rgba(34,197,94,0.1)', display: 'flex',
+                                alignItems: 'center', justifyContent: 'center',
+                            }}>
+                                <Icon size={17} color="#22c55e" />
                             </div>
                             <div>
-                                <h3 className="font-semibold text-sm">{title}</h3>
-                                <p className="mt-0.5 text-xs text-[--muted] leading-relaxed">{desc}</p>
+                                <div style={{ fontSize: '13px', fontWeight: 600, color: '#fafafa' }}>{title}</div>
+                                <div style={{ marginTop: '4px', fontSize: '12px', color: '#71717a', lineHeight: 1.55 }}>{desc}</div>
                             </div>
                         </div>
                     ))}
@@ -83,16 +113,25 @@ export default function HomePage() {
             </section>
 
             {/* CTA */}
-            <section className="relative overflow-hidden rounded-2xl border border-[--accent]/20 bg-[--accent-dim] p-10 text-center">
-                <h2 className="text-2xl font-bold">Ready to play smarter?</h2>
-                <p className="mt-2 text-sm text-[--muted] max-w-md mx-auto">Join thousands of players. Cancel anytime.</p>
-                <div className="mt-6">
-                    <Link href="/kmguard/store">
+            <section style={{
+                position: 'relative', overflow: 'hidden',
+                borderRadius: '16px', border: '1px solid rgba(34,197,94,0.2)',
+                background: 'rgba(34,197,94,0.06)', padding: '56px 32px',
+                textAlign: 'center',
+            }}>
+                <h2 style={{ margin: 0, fontSize: '26px', fontWeight: 700 }}>Ready to play smarter?</h2>
+                <p style={{ margin: '8px 0 0', fontSize: '13px', color: '#71717a' }}>Join thousands of players. Cancel anytime.</p>
+                <div style={{ marginTop: '24px' }}>
+                    <Link href="/kmguard/store" style={{ textDecoration: 'none' }}>
                         <Button size="lg">View Plans</Button>
                     </Link>
                 </div>
-                <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-[--accent]/10 blur-2xl pointer-events-none" />
-                <div className="absolute -left-10 -bottom-10 h-40 w-40 rounded-full bg-[--accent]/5 blur-2xl pointer-events-none" />
+                <div style={{
+                    position: 'absolute', right: '-40px', top: '-40px',
+                    width: '160px', height: '160px', borderRadius: '50%',
+                    background: 'rgba(34,197,94,0.08)', filter: 'blur(30px)',
+                    pointerEvents: 'none',
+                }} />
             </section>
 
         </div>

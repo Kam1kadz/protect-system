@@ -4,12 +4,14 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/auth'
 import { Button } from '@/components/ui/button'
 import { authApi } from '@/lib/api'
-import { ShieldCheck, Store, User, LayoutDashboard, LogOut } from 'lucide-react'
+import { ShieldCheck, Store, User, LayoutDashboard, LogOut, Menu } from 'lucide-react'
+import { useState } from 'react'
 
 export function Navbar() {
     const { user, clear } = useAuthStore()
     const router  = useRouter()
     const path    = usePathname()
+    const [open, setOpen] = useState(false)
 
     async function logout() {
         await authApi.logout().catch(() => {})
@@ -17,49 +19,67 @@ export function Navbar() {
         router.push('/auth/login')
     }
 
-    const link = (href: string, label: string, icon: React.ReactNode) => (
-        <Link
-            key={href}
-            href={href}
-            className={`flex items-center gap-1.5 text-sm transition-colors ${
-                path === href ? 'text-[--text]' : 'text-[--muted] hover:text-[--text]'
-            }`}
-        >
-            {icon}{label}
-        </Link>
-    )
+    const navLinks = [
+        { href: '/kmguard/store', label: 'Store', icon: <Store size={14} /> },
+        ...(user ? [{ href: '/kmguard/profile', label: user.username, icon: <User size={14} /> }] : []),
+        ...(user && ['admin','support'].includes(user.role)
+            ? [{ href: '/admin', label: 'Admin', icon: <LayoutDashboard size={14} /> }]
+            : []),
+    ]
 
     return (
-        <nav className="sticky top-0 z-50 border-b border-[--border] bg-[--bg]/80 backdrop-blur-md">
-            <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
-
+        <nav style={{
+            position: 'sticky', top: 0, zIndex: 50,
+            borderBottom: '1px solid #1c1c1f',
+            background: 'rgba(9,9,11,0.85)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+        }}>
+            <div style={{
+                maxWidth: '1152px', margin: '0 auto',
+                padding: '0 16px', height: '56px',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            }}>
                 {/* Logo */}
-                <Link href="/kmguard" className="flex items-center gap-2 group">
-                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[--accent]/15 group-hover:bg-[--accent]/25 transition-colors">
-                        <ShieldCheck size={15} className="text-[--accent]" />
+                <Link href="/kmguard" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{
+                        width: '28px', height: '28px', borderRadius: '8px',
+                        background: 'rgba(34,197,94,0.15)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                        <ShieldCheck size={15} color="#22c55e" />
                     </div>
-                    <span className="font-bold text-sm tracking-wide">Arbuz Client</span>
+                    <span style={{ fontWeight: 700, fontSize: '14px', color: '#fafafa', letterSpacing: '0.02em' }}>
+                        Arbuz Client
+                    </span>
                 </Link>
 
-                {/* Nav links */}
-                <div className="hidden sm:flex items-center gap-5">
-                    {link('/kmguard/store', 'Store', <Store size={14}/>)}
-                    {user && link('/kmguard/profile', user.username, <User size={14}/>)}
-                    {user && ['admin','support'].includes(user.role) && link('/admin', 'Admin', <LayoutDashboard size={14}/>)}
+                {/* Desktop Nav */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                    {navLinks.map(l => (
+                        <Link key={l.href} href={l.href} style={{
+                            textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '5px',
+                            fontSize: '13px', fontWeight: 500,
+                            color: path === l.href ? '#fafafa' : '#71717a',
+                            transition: 'color 0.15s',
+                        }}>
+                            {l.icon}{l.label}
+                        </Link>
+                    ))}
                 </div>
 
                 {/* Auth */}
-                <div className="flex items-center gap-2">
+                <div style={{ display: 'flex', gap: '8px' }}>
                     {user ? (
                         <Button variant="ghost" size="sm" onClick={logout}>
-                            <LogOut size={14}/> Logout
+                            <LogOut size={13} /> Logout
                         </Button>
                     ) : (
                         <>
-                            <Link href="/auth/login">
+                            <Link href="/auth/login" style={{ textDecoration: 'none' }}>
                                 <Button variant="ghost" size="sm">Login</Button>
                             </Link>
-                            <Link href="/auth/register">
+                            <Link href="/auth/register" style={{ textDecoration: 'none' }}>
                                 <Button size="sm">Sign Up</Button>
                             </Link>
                         </>

@@ -6,20 +6,27 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>((
-    { label, error, className = '', ...props }, ref
+    { label, error, style, ...props }, ref
 ) => (
-    <div className="flex flex-col gap-1.5 w-full">
-        {label && <label className="text-xs font-medium text-[--text-2]">{label}</label>}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
+        {label && (
+            <label style={{ fontSize: '12px', fontWeight: 500, color: '#a1a1aa' }}>{label}</label>
+        )}
         <input
             ref={ref}
-            className={`w-full h-10 rounded-lg border bg-[--surface-2] px-3 text-sm text-[--text] placeholder:text-[--muted-2] transition-colors
-                focus:outline-none focus:border-[--accent] focus:ring-1 focus:ring-[--accent]/30
-                disabled:opacity-50 disabled:cursor-not-allowed
-                ${error ? 'border-red-500/60' : 'border-[--border]'} ${className}`}
+            style={{
+                width: '100%', height: '40px', borderRadius: '8px',
+                border: `1px solid ${error ? '#ef4444' : '#27272a'}`,
+                background: '#1c1c1f', padding: '0 12px',
+                fontSize: '13px', color: '#fafafa', outline: 'none',
+                fontFamily: 'inherit', transition: 'border-color 0.15s',
+                ...style,
+            }}
+            onFocus={e => { e.target.style.borderColor = '#22c55e' }}
+            onBlur={e => { e.target.style.borderColor = error ? '#ef4444' : '#27272a' }}
             {...props}
         />
-        {error && <p className="text-xs text-red-400">{error}</p>}
+        {error && <p style={{ fontSize: '11px', color: '#f87171', margin: 0 }}>{error}</p>}
     </div>
 ))
-
 Input.displayName = 'Input'
