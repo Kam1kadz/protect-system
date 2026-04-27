@@ -1,8 +1,8 @@
 'use client'
-import { useAuthStore } from 'kmguard-site/src/store/auth'
+import { useAuthStore } from '@/store/auth'
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
-import { AdminSidebar } from 'kmguard-site/src/components/layout/AdminSidebar'
+import { AdminSidebar } from '@/components/layout/AdminSidebar'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
     const { user } = useAuthStore()

@@ -1,8 +1,8 @@
 'use client'
 import { useQuery } from '@tanstack/react-query'
-import { adminApi } from 'kmguard-site/src/lib/api'
-import { Card, CardHeader, CardTitle } from 'kmguard-site/src/components/ui/card'
-import type { Stats } from 'kmguard-site/src/types'
+import { adminApi } from '@/lib/api'
+import { Card, CardHeader, CardTitle } from '@/components/ui/card'
+import type { Stats } from '@/types'
 import { Users, ShieldCheck, Activity, TrendingUp, DollarSign } from 'lucide-react'
 
 export default function AdminDashboard() {
