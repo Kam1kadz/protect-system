@@ -1,9 +1,15 @@
 'use client'
 import { useState } from 'react'
+import { ShieldCheck, Zap, Eye, Cpu, Lock, RefreshCw } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
-export function FeatureCard({ icon: Icon, title, desc }: { icon: LucideIcon; title: string; desc: string }) {
+const ICONS: Record<string, LucideIcon> = {
+    ShieldCheck, Zap, Eye, Cpu, Lock, RefreshCw,
+}
+
+export function FeatureCard({ icon, title, desc }: { icon: string; title: string; desc: string }) {
     const [hovered, setHovered] = useState(false)
+    const Icon = ICONS[icon] ?? ShieldCheck
     return (
         <div
             onMouseEnter={() => setHovered(true)}

@@ -1,15 +1,14 @@
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { FeatureCard } from '@/components/ui/feature-card'
-import { ShieldCheck, Zap, Eye, Cpu, Lock, RefreshCw } from 'lucide-react'
 
 const features = [
-    { icon: ShieldCheck, title: 'Anti-Detection',   desc: 'Bypass updated within 24h of any AC patch.' },
-    { icon: Zap,         title: 'High Performance', desc: 'Under 2% FPS impact. Native optimized core.' },
-    { icon: Eye,         title: 'Visual Modules',   desc: 'ESP, Tracers, Chams — fully customizable.' },
-    { icon: Cpu,         title: 'Secure Loader',    desc: 'Encrypted delivery. Zero files left on disk.' },
-    { icon: Lock,        title: 'HWID Lock',        desc: 'License is bound to your hardware ID.' },
-    { icon: RefreshCw,   title: 'Auto Updates',     desc: 'Silent background updates, always latest.' },
+    { icon: 'ShieldCheck', title: 'Anti-Detection',   desc: 'Bypass updated within 24h of any AC patch.' },
+    { icon: 'Zap',         title: 'High Performance', desc: 'Under 2% FPS impact. Native optimized core.' },
+    { icon: 'Eye',         title: 'Visual Modules',   desc: 'ESP, Tracers, Chams — fully customizable.' },
+    { icon: 'Cpu',         title: 'Secure Loader',    desc: 'Encrypted delivery. Zero files left on disk.' },
+    { icon: 'Lock',        title: 'HWID Lock',        desc: 'License is bound to your hardware ID.' },
+    { icon: 'RefreshCw',   title: 'Auto Updates',     desc: 'Silent background updates, always latest.' },
 ]
 
 const stats = [
