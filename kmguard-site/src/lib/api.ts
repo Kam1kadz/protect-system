@@ -99,6 +99,12 @@ export const authApi = {
 
     changePassword: (oldPassword: string, newPassword: string) =>
         api.post('/api/v1/auth/change-password', { old_password: oldPassword, new_password: newPassword }),
+
+    requestPasswordReset: (email: string) =>
+        api.post('/api/v1/auth/reset-password', { email }),
+
+    confirmPasswordReset: (email: string, token: string, newPassword: string) =>
+        api.post('/api/v1/auth/reset-password/confirm', { email, token, new_password: newPassword }),
 }
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
