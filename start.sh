@@ -5,17 +5,15 @@ echo "Pulling latest changes..."
 git pull
 
 echo "Installing frontend dependencies..."
-cd kmguard-site && npm install && cd ..
+(cd kmguard-site && npm install)
 
 echo "Starting backend..."
-cd backend && go run ./cmd/server &
+(cd backend && go run ./cmd/server) &
 BACKEND_PID=$!
-cd ..
 
 echo "Starting frontend..."
-cd kmguard-site && npm run dev &
+(cd kmguard-site && npm run dev) &
 FRONTEND_PID=$!
-cd ..
 
 echo ""
 echo "✅ Running! Backend PID=$BACKEND_PID | Frontend PID=$FRONTEND_PID"
