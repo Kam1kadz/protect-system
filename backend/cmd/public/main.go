@@ -62,7 +62,7 @@ func main() {
 	loaderSvc  := service.NewLoaderService(licenseRepo, userRepo, redisClient, minioClient, cfg)
 	runtimeSvc := service.NewRuntimeService(runtimeRepo, userRepo, licenseRepo, cfg)
 
-	authH    := handlerPublic.NewAuthHandler(authSvc)
+	authH    := handlerPublic.NewAuthHandler(authSvc, pool)
 	loaderH  := handlerPublic.NewLoaderHandler(loaderSvc)
 	runtimeH := handlerPublic.NewRuntimeHandler(runtimeSvc)
 	statusH  := handlerPublic.NewStatusHandler(pool, redisClient)
@@ -92,7 +92,7 @@ func main() {
 
 	v1 := app.Group("/api/v1")
 
-	// ── Auth ─────────────────────────────────────────────────────────────────
+	// ── Auth ───────────────────────────────────────────────────────────────────
 	auth := v1.Group("/auth")
 	auth.Use(middleware.RateLimit(redisClient, "auth", 10, time.Minute))
 	auth.Post("/register", authH.Register)
@@ -103,6 +103,12 @@ func main() {
 		middleware.JWTAuth(cfg.JWTAccessSecret, "access"),
 		authH.Me,
 	)
+	auth.Post("/change-password",
+		middleware.JWTAuth(cfg.JWTAccessSecret, "access"),
+		authH.ChangePassword,
+	)
+	auth.Post("/reset-password",         authH.RequestPasswordReset)
+	auth.Post("/reset-password/confirm",  authH.ConfirmPasswordReset)
 
 	plansH := handlerPublic.NewPlansHandler(pool)
 	v1.Get("/auth/plans", plansH.List)
@@ -121,7 +127,7 @@ func main() {
 		storeH.Activate,
 	)
 
-	// ── Loader ────────────────────────────────────────────────────────────────
+	// ── Loader ─────────────────────────────────────────────────────────────
 	loader := v1.Group("/loader")
 	loader.Use(middleware.MaintenanceGuard(pool))
 	loader.Use(middleware.RateLimit(redisClient, "loader", 30, time.Minute))
@@ -133,7 +139,7 @@ func main() {
 	loader.Post("/heartbeat", loaderH.Heartbeat)
 	loader.Post("/revoke",    loaderH.Revoke)
 
-	// ── Runtime ───────────────────────────────────────────────────────────────
+	// ── Runtime ────────────────────────────────────────────────────────────
 	rt := v1.Group("/runtime")
 	rt.Use(middleware.MaintenanceGuard(pool))
 	rt.Use(middleware.RateLimit(redisClient, "runtime", 60, time.Minute))
@@ -151,7 +157,7 @@ func main() {
 	profile.Get("/licenses", manageH.ProfileLicenses)
 	profile.Get("/earnings", manageH.ProfileEarnings)
 
-	// ── Admin API ─────────────────────────────────────────────────────────────
+	// ── Admin API ────────────────────────────────────────────────────────────
 	adm := v1.Group("/admin")
 	adm.Use(middleware.JWTAuth(cfg.JWTAccessSecret, "access"))
 	adm.Use(middleware.RequireRoles("admin", "support"))
