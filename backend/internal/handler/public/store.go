@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/ps/backend/internal/crypto"
 	"github.com/ps/backend/internal/middleware"
+	"github.com/ps/backend/internal/token"
 )
 
 type StoreHandler struct {
@@ -16,6 +17,11 @@ type StoreHandler struct {
 
 func NewStoreHandler(db *pgxpool.Pool) *StoreHandler {
 	return &StoreHandler{db: db}
+}
+
+func storeClaims(c *fiber.Ctx) *token.Claims {
+	v, _ := c.Locals(middleware.ClaimsKey()).(*token.Claims)
+	return v
 }
 
 func (h *StoreHandler) ValidatePromo(c *fiber.Ctx) error {
@@ -59,7 +65,13 @@ func (h *StoreHandler) ValidatePromo(c *fiber.Ctx) error {
 func (h *StoreHandler) Activate(c *fiber.Ctx) error {
 	schema := c.Locals(middleware.SchemaKey()).(string)
 	s, _ := safeSchema(schema)
-	userID := c.Locals("user_id").(string)
+
+	// Fix: use JWT claims instead of local user_id
+	cl := storeClaims(c)
+	if cl == nil {
+		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+	}
+	userID := cl.UserID
 
 	var body struct {
 		Key       string `json:"key"`
@@ -92,6 +104,15 @@ func (h *StoreHandler) Activate(c *fiber.Ctx) error {
 			`SELECT duration_days FROM %s.plan_tiers WHERE id = $1`, s),
 			*tierID,
 		).Scan(&durationDays)
+	} else {
+		// попробуем взять duration_days прямо из ключа (если задано при генерации)
+		var keyDays *int
+		_ = h.db.QueryRow(c.Context(), fmt.Sprintf(
+			`SELECT duration_days FROM %s.loader_keys WHERE id = $1`, s), keyID,
+		).Scan(&keyDays)
+		if keyDays != nil && *keyDays > 0 {
+			durationDays = *keyDays
+		}
 	}
 
 	var promoID *string
@@ -137,21 +158,59 @@ func (h *StoreHandler) Activate(c *fiber.Ctx) error {
 		}
 	}
 
-	licKey, _ := crypto.RandomHex(16)
-	secretKey, _ := crypto.RandomHex(32)
-	expiresAt := time.Now().AddDate(0, 0, durationDays)
+	// Проверяем: есть ли уже активная незаблокированная лицензия на этот план?
+	var existingLicID string
+	var existingExpires time.Time
+	existingErr := h.db.QueryRow(c.Context(), fmt.Sprintf(
+		`SELECT id, expires_at FROM %s.licenses
+		 WHERE user_id = $1 AND plan_id = $2
+		   AND status NOT IN ('banned')
+		 ORDER BY expires_at DESC LIMIT 1`, s),
+		userID, planID,
+	).Scan(&existingLicID, &existingExpires)
 
 	var licenseID string
-	err = h.db.QueryRow(c.Context(), fmt.Sprintf(
-		`INSERT INTO %s.licenses
-		 (user_id, plan_id, tier_id, license_key, secret_key, expires_at)
-		 VALUES ($1, $2, $3, $4, $5, $6)
-		 RETURNING id`, s),
-		userID, planID, tierID, licKey, secretKey, expiresAt,
-	).Scan(&licenseID)
+	var licKey string
+	var finalExpires time.Time
 
-	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "failed to create license"})
+	if existingErr == nil && existingLicID != "" {
+		// Расширяем существующую подписку
+		base := existingExpires
+		if base.Before(time.Now()) {
+			base = time.Now()
+		}
+		finalExpires = base.AddDate(0, 0, durationDays)
+		_, err = h.db.Exec(c.Context(), fmt.Sprintf(
+			`UPDATE %s.licenses SET expires_at = $1, status = 'active' WHERE id = $2`, s),
+			finalExpires, existingLicID,
+		)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "failed to extend license"})
+		}
+		licenseID = existingLicID
+		// получаем ключ существующей лицензии
+		_ = h.db.QueryRow(c.Context(), fmt.Sprintf(
+			`SELECT COALESCE(license_key,'') FROM %s.licenses WHERE id = $1`, s), existingLicID,
+		).Scan(&licKey)
+	} else {
+		// Создаём новую лицензию
+		var newKey, secretKey string
+		newKey, _ = crypto.RandomHex(16)
+		secretKey, _ = crypto.RandomHex(32)
+		finalExpires = time.Now().AddDate(0, 0, durationDays)
+		licKey = newKey
+
+		err = h.db.QueryRow(c.Context(), fmt.Sprintf(
+			`INSERT INTO %s.licenses
+			 (user_id, plan_id, tier_id, license_key, secret_key, expires_at)
+			 VALUES ($1, $2, $3, $4, $5, $6)
+			 RETURNING id`, s),
+			userID, planID, tierID, newKey, secretKey, finalExpires,
+		).Scan(&licenseID)
+
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "failed to create license: " + err.Error()})
+		}
 	}
 
 	_, _ = h.db.Exec(c.Context(), fmt.Sprintf(
@@ -172,7 +231,7 @@ func (h *StoreHandler) Activate(c *fiber.Ctx) error {
 	return c.Status(201).JSON(fiber.Map{
 		"license_id":  licenseID,
 		"license_key": licKey,
-		"expires_at":  expiresAt.Format(time.RFC3339),
+		"expires_at":  finalExpires.Format(time.RFC3339),
 		"plan_id":     planID,
 	})
 }

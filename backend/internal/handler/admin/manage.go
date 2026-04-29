@@ -75,7 +75,7 @@ func (h *ManageHandler) ListUsers(c *fiber.Ctx) error {
 	}
 
 	rows, err := h.db.Query(c.Context(), fmt.Sprintf(
-		`SELECT id, username, email, role, hwid, last_seen_at, created_at
+		`SELECT id, COALESCE(uid, 0), username, email, role, hwid, last_seen_at, created_at
 		 FROM %s.users %s ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
 		s, where,
 	), args...)
@@ -86,6 +86,7 @@ func (h *ManageHandler) ListUsers(c *fiber.Ctx) error {
 
 	type UserRow struct {
 		ID        string  `json:"id"`
+		UID       int     `json:"uid"`
 		Username  string  `json:"username"`
 		Email     string  `json:"email"`
 		Role      string  `json:"role"`
@@ -99,7 +100,7 @@ func (h *ManageHandler) ListUsers(c *fiber.Ctx) error {
 		var u UserRow
 		var ca time.Time
 		var lsPtr *time.Time
-		if err := rows.Scan(&u.ID, &u.Username, &u.Email, &u.Role,
+		if err := rows.Scan(&u.ID, &u.UID, &u.Username, &u.Email, &u.Role,
 			&u.HWID, &lsPtr, &ca); err != nil {
 			continue
 		}
@@ -276,6 +277,44 @@ func (h *ManageHandler) RevokeLicense(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"ok": true})
 }
 
+// UnlockLicense — разблокировать лицензию (banned → active)
+func (h *ManageHandler) UnlockLicense(c *fiber.Ctx) error {
+	schema := c.Locals(middleware.SchemaKey()).(string)
+	s, _ := safeSchema(schema)
+
+	_, err := h.db.Exec(c.Context(), fmt.Sprintf(
+		`UPDATE %s.licenses SET status = 'active', ban_reason = NULL WHERE id = $1`, s), c.Params("id"))
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "db error"})
+	}
+	return c.JSON(fiber.Map{"ok": true})
+}
+
+// UpdateLicenseExpiry — изменить дату окончания подписки
+func (h *ManageHandler) UpdateLicenseExpiry(c *fiber.Ctx) error {
+	schema := c.Locals(middleware.SchemaKey()).(string)
+	s, _ := safeSchema(schema)
+
+	var body struct {
+		ExpiresAt string `json:"expires_at"`
+	}
+	if err := c.BodyParser(&body); err != nil || body.ExpiresAt == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "expires_at required"})
+	}
+
+	expAt, err := time.Parse(time.RFC3339, body.ExpiresAt)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "invalid expires_at format, use RFC3339"})
+	}
+
+	_, err = h.db.Exec(c.Context(), fmt.Sprintf(
+		`UPDATE %s.licenses SET expires_at = $1 WHERE id = $2`, s), expAt, c.Params("id"))
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "db error"})
+	}
+	return c.JSON(fiber.Map{"ok": true})
+}
+
 // ── Plans CRUD ────────────────────────────────────────────────────────────────
 
 func (h *ManageHandler) ListPlans(c *fiber.Ctx) error {
@@ -345,16 +384,20 @@ func (h *ManageHandler) CreatePlan(c *fiber.Ctx) error {
 		Name        string `json:"name"`
 		DisplayName string `json:"display_name"`
 		SortOrder   int    `json:"sort_order"`
+		ProductType string `json:"product_type"`
 	}
 	if err := c.BodyParser(&body); err != nil || body.Name == "" || body.DisplayName == "" {
 		return c.Status(400).JSON(fiber.Map{"error": "name and display_name required"})
 	}
+	if body.ProductType == "" {
+		body.ProductType = "subscription"
+	}
 
 	var id string
 	err := h.db.QueryRow(c.Context(), fmt.Sprintf(
-		`INSERT INTO %s.subscription_plans (id, name, display_name, sort_order, is_active)
-		 VALUES (gen_random_uuid(), $1, $2, $3, true) RETURNING id`, s),
-		body.Name, body.DisplayName, body.SortOrder,
+		`INSERT INTO %s.subscription_plans (id, name, display_name, sort_order, is_active, product_type)
+		 VALUES (gen_random_uuid(), $1, $2, $3, true, $4) RETURNING id`, s),
+		body.Name, body.DisplayName, body.SortOrder, body.ProductType,
 	).Scan(&id)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "db error: " + err.Error()})
@@ -371,6 +414,7 @@ func (h *ManageHandler) UpdatePlan(c *fiber.Ctx) error {
 		DisplayName string `json:"display_name"`
 		IsActive    *bool  `json:"is_active"`
 		SortOrder   *int   `json:"sort_order"`
+		ProductType string `json:"product_type"`
 	}
 	if err := c.BodyParser(&body); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "bad request"})
@@ -378,12 +422,13 @@ func (h *ManageHandler) UpdatePlan(c *fiber.Ctx) error {
 
 	_, err := h.db.Exec(c.Context(), fmt.Sprintf(
 		`UPDATE %s.subscription_plans
-		 SET display_name = COALESCE(NULLIF($1,''), display_name),
-		     is_active    = COALESCE($2, is_active),
-		     sort_order   = COALESCE($3, sort_order),
-		     updated_at   = NOW()
-		 WHERE id = $4`, s),
-		body.DisplayName, body.IsActive, body.SortOrder, planID)
+		 SET display_name  = COALESCE(NULLIF($1,''), display_name),
+		     is_active     = COALESCE($2, is_active),
+		     sort_order    = COALESCE($3, sort_order),
+		     product_type  = COALESCE(NULLIF($4,''), product_type),
+		     updated_at    = NOW()
+		 WHERE id = $5`, s),
+		body.DisplayName, body.IsActive, body.SortOrder, body.ProductType, planID)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "db error"})
 	}
@@ -452,7 +497,8 @@ func (h *ManageHandler) ListKeys(c *fiber.Ctx) error {
 
 	rows, err := h.db.Query(c.Context(), fmt.Sprintf(
 		`SELECT k.id, k.key_value, sp.display_name, k.is_used,
-		        u.username, k.used_at, k.created_at
+		        u.username, k.used_at, k.created_at,
+		        COALESCE(k.duration_days, 30)
 		 FROM %s.loader_keys k
 		 JOIN %s.subscription_plans sp ON sp.id = k.plan_id
 		 LEFT JOIN %s.users u ON u.id = k.used_by
@@ -465,13 +511,14 @@ func (h *ManageHandler) ListKeys(c *fiber.Ctx) error {
 	defer rows.Close()
 
 	type KeyRow struct {
-		ID        string  `json:"id"`
-		KeyValue  string  `json:"key_value"`
-		PlanName  string  `json:"plan_name"`
-		IsUsed    bool    `json:"is_used"`
-		UsedBy    *string `json:"used_by"`
-		UsedAt    *string `json:"used_at"`
-		CreatedAt string  `json:"created_at"`
+		ID           string  `json:"id"`
+		KeyValue     string  `json:"key_value"`
+		PlanName     string  `json:"plan_name"`
+		IsUsed       bool    `json:"is_used"`
+		UsedBy       *string `json:"used_by"`
+		UsedAt       *string `json:"used_at"`
+		CreatedAt    string  `json:"created_at"`
+		DurationDays int     `json:"duration_days"`
 	}
 
 	var list []KeyRow
@@ -480,7 +527,7 @@ func (h *ManageHandler) ListKeys(c *fiber.Ctx) error {
 		var ca time.Time
 		var ua *time.Time
 		if err := rows.Scan(&r.ID, &r.KeyValue, &r.PlanName, &r.IsUsed,
-			&r.UsedBy, &ua, &ca); err != nil {
+			&r.UsedBy, &ua, &ca, &r.DurationDays); err != nil {
 			continue
 		}
 		r.CreatedAt = ca.Format(time.RFC3339)
@@ -499,7 +546,6 @@ func (h *ManageHandler) ListKeys(c *fiber.Ctx) error {
 func (h *ManageHandler) GenerateKeys(c *fiber.Ctx) error {
 	schema := c.Locals(middleware.SchemaKey()).(string)
 	s, _ := safeSchema(schema)
-	// Fix: get admin user ID from JWT claims, not from missing "user_id" local
 	cl := claims(c)
 	var adminID string
 	if cl != nil {
@@ -507,9 +553,10 @@ func (h *ManageHandler) GenerateKeys(c *fiber.Ctx) error {
 	}
 
 	var body struct {
-		PlanID string `json:"plan_id"`
-		TierID string `json:"tier_id"`
-		Count  int    `json:"count"`
+		PlanID       string `json:"plan_id"`
+		TierID       string `json:"tier_id"`
+		Count        int    `json:"count"`
+		DurationDays int    `json:"duration_days"`
 	}
 	if err := c.BodyParser(&body); err != nil || body.PlanID == "" || body.Count <= 0 {
 		return c.Status(400).JSON(fiber.Map{"error": "bad request"})
@@ -522,6 +569,10 @@ func (h *ManageHandler) GenerateKeys(c *fiber.Ctx) error {
 	if body.TierID != "" {
 		tierID = &body.TierID
 	}
+	var durationDays *int
+	if body.DurationDays > 0 {
+		durationDays = &body.DurationDays
+	}
 
 	keys := make([]string, 0, body.Count)
 	for i := 0; i < body.Count; i++ {
@@ -530,9 +581,9 @@ func (h *ManageHandler) GenerateKeys(c *fiber.Ctx) error {
 			kv[:4], kv[4:8], kv[8:12], kv[12:16])
 		keys = append(keys, key)
 		_, _ = h.db.Exec(c.Context(), fmt.Sprintf(
-			`INSERT INTO %s.loader_keys (key_value, plan_id, tier_id, created_by)
-			 VALUES ($1, $2, $3, $4)`, s),
-			key, body.PlanID, tierID, adminID)
+			`INSERT INTO %s.loader_keys (key_value, plan_id, tier_id, created_by, duration_days)
+			 VALUES ($1, $2, $3, $4, $5)`, s),
+			key, body.PlanID, tierID, adminID, durationDays)
 	}
 
 	return c.Status(201).JSON(fiber.Map{"keys": keys, "count": len(keys)})

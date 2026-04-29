@@ -44,8 +44,9 @@ func (h *PayloadHandler) Upload(c *fiber.Ctx) error {
 	planID    := c.Params("plan_id")
 	mcVersion := c.Query("mc_version")
 
-	if mcVersion != "1.16.5" && mcVersion != "1.21.4" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid mc_version"})
+	// Только 1.16.5 и 1.19.4
+	if mcVersion != "1.16.5" && mcVersion != "1.19.4" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid mc_version, allowed: 1.16.5, 1.19.4"})
 	}
 
 	tenant, err := h.tenants.FindBySlug(c.Context(), slug)

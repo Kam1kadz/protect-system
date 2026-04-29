@@ -34,17 +34,18 @@ const (
 )
 
 type User struct {
-	ID           string    `db:"id"`
-	Username     string    `db:"username"`
-	Email        string    `db:"email"`
-	PasswordHash string    `db:"password_hash"`
-	Role         UserRole  `db:"role"`
-	HWID         *string   `db:"hwid"`
+	ID           string     `db:"id"`
+	UID          int        `db:"uid"`
+	Username     string     `db:"username"`
+	Email        string     `db:"email"`
+	PasswordHash string     `db:"password_hash"`
+	Role         UserRole   `db:"role"`
+	HWID         *string    `db:"hwid"`
 	HWIDLockedAt *time.Time `db:"hwid_locked_at"`
-	IPRegistered *string   `db:"ip_registered"`
-	IPLast       *string   `db:"ip_last"`
+	IPRegistered *string    `db:"ip_registered"`
+	IPLast       *string    `db:"ip_last"`
 	LastSeenAt   *time.Time `db:"last_seen_at"`
-	CreatedAt    time.Time `db:"created_at"`
+	CreatedAt    time.Time  `db:"created_at"`
 }
 
 type Session struct {
@@ -72,35 +73,46 @@ const (
 )
 
 type License struct {
-    ID           string        `db:"id"`
-    UserID       string        `db:"user_id"`
-    PlanID       string        `db:"plan_id"`
-    TierID       *string       `db:"tier_id"`
-    HWIDSnapshot *string       `db:"hwid_snapshot"`
-    Status       LicenseStatus `db:"status"`
-    ExpiresAt    time.Time     `db:"expires_at"`
-    PausedAt     *time.Time    `db:"paused_at"`
-    PauseReason  *string       `db:"pause_reason"`
-    BanReason    *string       `db:"ban_reason"`
-    LicenseKey   *string       `db:"license_key"`
-    SecretKey    *string       `db:"secret_key"`
-    CreatedAt    time.Time     `db:"created_at"`
+	ID           string        `db:"id"`
+	UserID       string        `db:"user_id"`
+	PlanID       string        `db:"plan_id"`
+	TierID       *string       `db:"tier_id"`
+	HWIDSnapshot *string       `db:"hwid_snapshot"`
+	Status       LicenseStatus `db:"status"`
+	ExpiresAt    time.Time     `db:"expires_at"`
+	PausedAt     *time.Time    `db:"paused_at"`
+	PauseReason  *string       `db:"pause_reason"`
+	BanReason    *string       `db:"ban_reason"`
+	LicenseKey   *string       `db:"license_key"`
+	SecretKey    *string       `db:"secret_key"`
+	CreatedAt    time.Time     `db:"created_at"`
 }
 
 type MCVersion string
 
 const (
-    MCVersion1165 MCVersion = "1.16.5"
-    MCVersion1214 MCVersion = "1.21.4"
+	MCVersion1165 MCVersion = "1.16.5"
+	MCVersion1194 MCVersion = "1.19.4"
+)
+
+// ProductType — тип товара в магазине
+type ProductType string
+
+const (
+	ProductSubscription ProductType = "subscription"
+	ProductHWIDReset    ProductType = "hwid_reset"
+	ProductConfig       ProductType = "config"
 )
 
 type SubscriptionPlan struct {
-    ID            string    `db:"id"`
-    Name          string    `db:"name"`
-    DisplayName   string    `db:"display_name"`
-    JarStorageKey *string   `db:"jar_storage_key"`
-    IsActive      bool      `db:"is_active"`
-    SortOrder     int       `db:"sort_order"`
-    CreatedAt     time.Time `db:"created_at"`
-    UpdatedAt     time.Time `db:"updated_at"`
+	ID            string      `db:"id"`
+	Name          string      `db:"name"`
+	DisplayName   string      `db:"display_name"`
+	JarStorageKey *string     `db:"jar_storage_key"`
+	ProductType   ProductType `db:"product_type"`
+	ConfigFileKey *string     `db:"config_file_key"`
+	IsActive      bool        `db:"is_active"`
+	SortOrder     int         `db:"sort_order"`
+	CreatedAt     time.Time   `db:"created_at"`
+	UpdatedAt     time.Time   `db:"updated_at"`
 }
