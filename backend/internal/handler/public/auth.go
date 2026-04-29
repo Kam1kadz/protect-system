@@ -9,6 +9,8 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/ps/backend/config"
+	"github.com/ps/backend/internal/email"
 	"github.com/ps/backend/internal/middleware"
 	"github.com/ps/backend/internal/model"
 	"github.com/ps/backend/internal/service"
@@ -17,12 +19,18 @@ import (
 )
 
 type AuthHandler struct {
-	svc *service.AuthService
-	db  *pgxpool.Pool
+	svc    *service.AuthService
+	db     *pgxpool.Pool
+	mailer *email.Client
 }
 
 func NewAuthHandler(svc *service.AuthService, db *pgxpool.Pool) *AuthHandler {
 	return &AuthHandler{svc: svc, db: db}
+}
+
+// SetMailer — вызывается из main после создания handler'а
+func (h *AuthHandler) SetMailer(cfg *config.Config) {
+	h.mailer = email.New(cfg.ResendAPIKey, cfg.ResendFrom, cfg.AppName, cfg.SiteURL)
 }
 
 func (h *AuthHandler) Register(c *fiber.Ctx) error {
@@ -78,7 +86,6 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	schema := c.Locals(middleware.SchemaKey()).(string)
 	tenant := c.Locals(middleware.TenantKey()).(*model.Tenant)
 
-	// Определяем: email или username
 	var pair *service.TokenPair
 	var err error
 	if strings.Contains(body.Identifier, "@") {
@@ -150,7 +157,6 @@ func (h *AuthHandler) Me(c *fiber.Ctx) error {
 	})
 }
 
-// ChangePassword — смена пароля для залогиненного пользователя
 func (h *AuthHandler) ChangePassword(c *fiber.Ctx) error {
 	claims := c.Locals(middleware.ClaimsKey()).(*token.Claims)
 	schema := c.Locals(middleware.SchemaKey()).(string)
@@ -164,7 +170,6 @@ func (h *AuthHandler) ChangePassword(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "new password must be at least 8 characters"})
 	}
 
-	// Получить текущий хэш
 	var currentHash string
 	err := h.db.QueryRow(c.Context(), fmt.Sprintf(
 		`SELECT password_hash FROM %s.users WHERE id = $1`, s), claims.UserID,
@@ -193,7 +198,6 @@ func (h *AuthHandler) ChangePassword(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"ok": true})
 }
 
-// RequestPasswordReset — отправить код сброса на email
 func (h *AuthHandler) RequestPasswordReset(c *fiber.Ctx) error {
 	schema := c.Locals(middleware.SchemaKey()).(string)
 	s, _ := safeSchema(schema)
@@ -205,7 +209,6 @@ func (h *AuthHandler) RequestPasswordReset(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "email required"})
 	}
 
-	// Генерируем 6-значный код и сохраняем в audit_log как временный токен
 	var userID string
 	err := h.db.QueryRow(c.Context(), fmt.Sprintf(
 		`SELECT id FROM %s.users WHERE email = $1`, s), body.Email,
@@ -215,25 +218,30 @@ func (h *AuthHandler) RequestPasswordReset(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{"ok": true})
 	}
 
-	// Создаём reset токен (hex) и сохраняем в таблице reset_tokens
 	_, _ = h.db.Exec(c.Context(), fmt.Sprintf(
 		`INSERT INTO %s.reset_tokens (user_id, token, expires_at)
 		 VALUES ($1, gen_random_uuid()::text, NOW() + INTERVAL '1 hour')
 		 ON CONFLICT (user_id) DO UPDATE
-		   SET token = gen_random_uuid()::text, expires_at = NOW() + INTERVAL '1 hour',
+		   SET token = gen_random_uuid()::text,
+		       expires_at = NOW() + INTERVAL '1 hour',
 		       created_at = NOW()`, s), userID)
 
-	// TODO: отправить email с токеном. Пока логируем.
 	var resetToken string
 	_ = h.db.QueryRow(c.Context(), fmt.Sprintf(
 		`SELECT token FROM %s.reset_tokens WHERE user_id = $1`, s), userID,
 	).Scan(&resetToken)
-	log.Printf("[PasswordReset] user=%s token=%s (TODO: send email)", userID, resetToken)
+
+	// Отправляем письмо
+	if h.mailer != nil {
+		if err := h.mailer.SendPasswordReset(body.Email, resetToken); err != nil {
+			log.Printf("[PasswordReset] email send error: %v", err)
+		}
+	}
+	log.Printf("[PasswordReset] user=%s token=%s", userID, resetToken)
 
 	return c.JSON(fiber.Map{"ok": true})
 }
 
-// ConfirmPasswordReset — применить новый пароль по токену
 func (h *AuthHandler) ConfirmPasswordReset(c *fiber.Ctx) error {
 	schema := c.Locals(middleware.SchemaKey()).(string)
 	s, _ := safeSchema(schema)

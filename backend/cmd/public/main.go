@@ -63,6 +63,7 @@ func main() {
 	runtimeSvc := service.NewRuntimeService(runtimeRepo, userRepo, licenseRepo, cfg)
 
 	authH    := handlerPublic.NewAuthHandler(authSvc, pool)
+	authH.SetMailer(cfg)
 	loaderH  := handlerPublic.NewLoaderHandler(loaderSvc)
 	runtimeH := handlerPublic.NewRuntimeHandler(runtimeSvc)
 	statusH  := handlerPublic.NewStatusHandler(pool, redisClient)
@@ -107,8 +108,8 @@ func main() {
 		middleware.JWTAuth(cfg.JWTAccessSecret, "access"),
 		authH.ChangePassword,
 	)
-	auth.Post("/reset-password",         authH.RequestPasswordReset)
-	auth.Post("/reset-password/confirm",  authH.ConfirmPasswordReset)
+	auth.Post("/reset-password",        authH.RequestPasswordReset)
+	auth.Post("/reset-password/confirm", authH.ConfirmPasswordReset)
 
 	plansH := handlerPublic.NewPlansHandler(pool)
 	v1.Get("/auth/plans", plansH.List)
@@ -151,7 +152,7 @@ func main() {
 	rt.Post("/event",     runtimeH.ReportEvent)
 	rt.Post("/terminate", runtimeH.Terminate)
 
-	// ── Profile (user-facing) ─────────────────────────────────────────────────
+	// ── Profile ──────────────────────────────────────────────────────────────
 	profile := v1.Group("/profile")
 	profile.Use(middleware.JWTAuth(cfg.JWTAccessSecret, "access"))
 	profile.Get("/licenses", manageH.ProfileLicenses)
@@ -166,7 +167,6 @@ func main() {
 	adm.Get("/config",     manageH.GetConfig)
 	adm.Get("/roles",      manageH.ListRoles)
 	adm.Post("/roles",     middleware.RequireRoles("admin"), manageH.UpsertRole)
-
 	adm.Post("/maintenance",
 		middleware.RequireRoles("admin"),
 		manageH.SetMaintenance,
@@ -184,14 +184,13 @@ func main() {
 	lics.Get("/",       manageH.ListLicenses)
 	lics.Delete("/:id", manageH.RevokeLicense)
 
-	// ── Plans CRUD ────────────────────────────────────────────────────────────
 	plans := adm.Group("/plans")
 	plans.Get("/",                          manageH.ListPlans)
 	plans.Post("/",       middleware.RequireRoles("admin"), manageH.CreatePlan)
 	plans.Patch("/:id",   middleware.RequireRoles("admin"), manageH.UpdatePlan)
 	plans.Delete("/:id",  middleware.RequireRoles("admin"), manageH.DeletePlan)
-	plans.Post("/:id/tiers",              middleware.RequireRoles("admin"), manageH.AddTier)
-	plans.Delete("/:id/tiers/:tier_id",   middleware.RequireRoles("admin"), manageH.DeleteTier)
+	plans.Post("/:id/tiers",            middleware.RequireRoles("admin"), manageH.AddTier)
+	plans.Delete("/:id/tiers/:tier_id", middleware.RequireRoles("admin"), manageH.DeleteTier)
 
 	keys := adm.Group("/keys")
 	keys.Get("/",       manageH.ListKeys)

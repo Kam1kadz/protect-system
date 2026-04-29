@@ -32,6 +32,12 @@ type Config struct {
 	SuperAdminKey string
 	HMACDrift     int64
 	NonceTTL      int
+
+	// Email (Resend)
+	ResendAPIKey string
+	ResendFrom   string
+	AppName      string
+	SiteURL      string
 }
 
 func Load() (*Config, error) {
@@ -77,6 +83,11 @@ func Load() (*Config, error) {
 		SuperAdminKey:    mustEnv("SUPER_ADMIN_KEY"),
 		HMACDrift:        drift,
 		NonceTTL:         nonceTTL,
+		// Email — необязательные, без них письма просто не шлются
+		ResendAPIKey: getEnv("RESEND_API_KEY", ""),
+		ResendFrom:   getEnv("RESEND_FROM", "noreply@yourdomain.com"),
+		AppName:      getEnv("APP_NAME", "KMGuard"),
+		SiteURL:      getEnv("SITE_URL", "http://localhost:3000"),
 	}, nil
 }
 
