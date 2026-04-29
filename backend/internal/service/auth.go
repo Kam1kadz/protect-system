@@ -41,6 +41,10 @@ func (s *AuthService) Register(ctx context.Context, schema, username, email, pas
 	if existing != nil {
 		return nil, ErrEmailTaken
 	}
+	existingU, _ := s.users.FindByUsername(ctx, schema, username)
+	if existingU != nil {
+		return nil, ErrUsernameTaken
+	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
@@ -52,6 +56,24 @@ func (s *AuthService) Register(ctx context.Context, schema, username, email, pas
 
 func (s *AuthService) Login(ctx context.Context, schema, tenantID, email, password, ip string) (*TokenPair, error) {
 	user, err := s.users.FindByEmail(ctx, schema, email)
+	if err != nil {
+		return nil, ErrBadCredentials
+	}
+	if user.Role == model.RoleBanned {
+		return nil, ErrUserBanned
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
+		return nil, ErrBadCredentials
+	}
+
+	go s.users.UpdateLastSeen(context.Background(), schema, user.ID, ip)
+
+	return s.issueTokens(user.ID, tenantID, string(user.Role))
+}
+
+// LoginByUsername — вход по никнейму вместо email
+func (s *AuthService) LoginByUsername(ctx context.Context, schema, tenantID, username, password, ip string) (*TokenPair, error) {
+	user, err := s.users.FindByUsername(ctx, schema, username)
 	if err != nil {
 		return nil, ErrBadCredentials
 	}
@@ -79,7 +101,6 @@ func (s *AuthService) Refresh(ctx context.Context, rawRefresh, tenantID string) 
 	return s.issueTokens(claims.UserID, tenantID, claims.Role)
 }
 
-// GetUserByID возвращает пользователя по ID из БД
 func (s *AuthService) GetUserByID(ctx context.Context, schema, userID string) (*model.User, error) {
 	return s.users.FindByID(ctx, schema, userID)
 }

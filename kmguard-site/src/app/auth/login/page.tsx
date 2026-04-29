@@ -10,23 +10,23 @@ import { toast } from 'sonner'
 import { ShieldCheck } from 'lucide-react'
 
 export default function LoginPage() {
-    const [email, setEmail]       = useState('')
-    const [password, setPassword] = useState('')
-    const [loading, setLoading]   = useState(false)
-    const { setUser, setToken }   = useAuthStore()
+    const [identifier, setIdentifier] = useState('') // email or username
+    const [password, setPassword]     = useState('')
+    const [loading, setLoading]       = useState(false)
+    const { setUser, setToken }        = useAuthStore()
     const router = useRouter()
 
     async function submit(e: React.FormEvent) {
         e.preventDefault()
         setLoading(true)
         try {
-            const res = await authApi.login(email, password)
+            const res = await authApi.login(identifier, password)
             setToken(res.data.access_token)
             const me = await authApi.me()
             setUser(me.data)
             router.push('/kmguard/profile')
         } catch {
-            toast.error('Invalid email or password')
+            toast.error('Invalid credentials')
         } finally {
             setLoading(false)
         }
@@ -38,8 +38,6 @@ export default function LoginPage() {
             display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px',
         }}>
             <div style={{ width: '100%', maxWidth: '360px' }}>
-
-                {/* Logo */}
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', marginBottom: '32px' }}>
                     <div style={{
                         width: '48px', height: '48px', borderRadius: '14px',
@@ -59,10 +57,29 @@ export default function LoginPage() {
                     background: '#111113', padding: '24px',
                 }}>
                     <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                        <Input label="Email" type="email" placeholder="you@example.com"
-                            value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email" />
-                        <Input label="Password" type="password" placeholder="••••••••"
-                            value={password} onChange={e => setPassword(e.target.value)} required autoComplete="current-password" />
+                        <Input
+                            label="Email or username"
+                            type="text"
+                            placeholder="you@example.com or nickname"
+                            value={identifier}
+                            onChange={e => setIdentifier(e.target.value)}
+                            required
+                            autoComplete="username"
+                        />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <Input
+                                label="Password"
+                                type="password"
+                                placeholder="••••••••"
+                                value={password}
+                                onChange={e => setPassword(e.target.value)}
+                                required
+                                autoComplete="current-password"
+                            />
+                            <div style={{ textAlign: 'right' }}>
+                                <Link href="/auth/reset-password" style={{ fontSize: '12px', color: '#52525b', textDecoration: 'none' }}>Forgot password?</Link>
+                            </div>
+                        </div>
                         <div style={{ marginTop: '4px' }}>
                             <Button type="submit" loading={loading} style={{ width: '100%' }}>Sign In</Button>
                         </div>

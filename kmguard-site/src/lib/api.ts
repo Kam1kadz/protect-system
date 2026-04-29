@@ -82,8 +82,8 @@ export const api = createClient()
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 export const authApi = {
-    login: (email: string, password: string) =>
-        api.post('/api/v1/auth/login', { email, password }),
+    login: (identifier: string, password: string) =>
+        api.post('/api/v1/auth/login', { email: identifier, password }),
 
     register: (username: string, email: string, password: string) =>
         api.post('/api/v1/auth/register', { username, email, password }),
@@ -96,6 +96,9 @@ export const authApi = {
 
     refresh: () =>
         api.post('/api/v1/auth/refresh'),
+
+    changePassword: (oldPassword: string, newPassword: string) =>
+        api.post('/api/v1/auth/change-password', { old_password: oldPassword, new_password: newPassword }),
 }
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
@@ -134,7 +137,6 @@ export const adminApi = {
     revokeLic: (id: string) =>
         api.delete(`/api/v1/admin/licenses/${id}`),
 
-    // Plans CRUD
     plans: () =>
         api.get('/api/v1/admin/plans'),
 
@@ -156,11 +158,8 @@ export const adminApi = {
     keys: () =>
         api.get('/api/v1/admin/keys'),
 
-    genKeys: (data: {
-        plan_id:  string
-        tier_id?: string
-        count:    number
-    }) => api.post('/api/v1/admin/keys', data),
+    genKeys: (data: { plan_id: string; tier_id?: string; count: number }) =>
+        api.post('/api/v1/admin/keys', data),
 
     deleteKey: (id: string) =>
         api.delete(`/api/v1/admin/keys/${id}`),
@@ -217,10 +216,8 @@ export const adminApi = {
     roles: () =>
         api.get('/api/v1/admin/roles'),
 
-    upsertRole: (data: {
-        role_name:   string
-        permissions: string
-    }) => api.post('/api/v1/admin/roles', data),
+    upsertRole: (data: { role_name: string; permissions: string }) =>
+        api.post('/api/v1/admin/roles', data),
 }
 
 // ── Store (public) ────────────────────────────────────────────────────────────
@@ -232,7 +229,13 @@ export const storeApi = {
     activate: (tierId: string, promoCode?: string) =>
         api.post('/api/v1/store/activate', {
             tier_id:    tierId,
-            promo_code: promoCode ?? undefined,
+            promo_code: promoCode || undefined,
+        }),
+
+    activateKey: (key: string, promoCode?: string) =>
+        api.post('/api/v1/store/activate', {
+            key,
+            promo_code: promoCode || undefined,
         }),
 
     validatePromo: (code: string) =>

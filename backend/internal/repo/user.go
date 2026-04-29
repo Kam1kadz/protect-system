@@ -43,12 +43,17 @@ func (r *UserRepo) FindByEmail(ctx context.Context, schema, email string) (*mode
 	if err != nil {
 		return nil, err
 	}
-	q := fmt.Sprintf(
-		`SELECT `+selectUserCols+` FROM %s.users WHERE email = $1`,
-		s,
-	)
-	row := r.db.QueryRow(ctx, q, email)
-	return scanUser(row)
+	q := fmt.Sprintf(`SELECT `+selectUserCols+` FROM %s.users WHERE email = $1`, s)
+	return scanUser(r.db.QueryRow(ctx, q, email))
+}
+
+func (r *UserRepo) FindByUsername(ctx context.Context, schema, username string) (*model.User, error) {
+	s, err := safeSchema(schema)
+	if err != nil {
+		return nil, err
+	}
+	q := fmt.Sprintf(`SELECT `+selectUserCols+` FROM %s.users WHERE username = $1`, s)
+	return scanUser(r.db.QueryRow(ctx, q, username))
 }
 
 func (r *UserRepo) FindByID(ctx context.Context, schema, id string) (*model.User, error) {
@@ -56,12 +61,8 @@ func (r *UserRepo) FindByID(ctx context.Context, schema, id string) (*model.User
 	if err != nil {
 		return nil, err
 	}
-	q := fmt.Sprintf(
-		`SELECT `+selectUserCols+` FROM %s.users WHERE id = $1`,
-		s,
-	)
-	row := r.db.QueryRow(ctx, q, id)
-	return scanUser(row)
+	q := fmt.Sprintf(`SELECT `+selectUserCols+` FROM %s.users WHERE id = $1`, s)
+	return scanUser(r.db.QueryRow(ctx, q, id))
 }
 
 func (r *UserRepo) UpdateLastSeen(ctx context.Context, schema, id, ip string) error {
@@ -69,11 +70,8 @@ func (r *UserRepo) UpdateLastSeen(ctx context.Context, schema, id, ip string) er
 	if err != nil {
 		return err
 	}
-	q := fmt.Sprintf(
-		`UPDATE %s.users SET last_seen_at = NOW(), ip_last = $1::inet WHERE id = $2`,
-		s,
-	)
-	_, err = r.db.Exec(ctx, q, ip, id)
+	_, err = r.db.Exec(ctx, fmt.Sprintf(
+		`UPDATE %s.users SET last_seen_at = NOW(), ip_last = $1::inet WHERE id = $2`, s), ip, id)
 	return err
 }
 
@@ -90,8 +88,7 @@ func (r *UserRepo) GetActiveLicense(ctx context.Context, schema, userID string) 
 		 ORDER BY expires_at DESC LIMIT 1`,
 		s,
 	)
-	row := r.db.QueryRow(ctx, q, userID)
-	return scanLicense(row)
+	return scanLicense(r.db.QueryRow(ctx, q, userID))
 }
 
 func (r *UserRepo) CreateSession(ctx context.Context, schema string, s *model.Session) error {
@@ -99,14 +96,12 @@ func (r *UserRepo) CreateSession(ctx context.Context, schema string, s *model.Se
 	if err != nil {
 		return err
 	}
-	q := fmt.Sprintf(
+	_, err = r.db.Exec(ctx, fmt.Sprintf(
 		`INSERT INTO %s.sessions
 		   (user_id, license_id, token_hash, hwid, ip_address,
 		    loader_version, minecraft_version, expires_at)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-		sc,
-	)
-	_, err = r.db.Exec(ctx, q,
+		sc),
 		s.UserID, s.LicenseID, s.TokenHash, s.HWID, s.IPAddress,
 		s.LoaderVersion, s.MinecraftVersion, s.ExpiresAt,
 	)
@@ -126,8 +121,7 @@ func (r *UserRepo) FindSession(ctx context.Context, schema, tokenHash string) (*
 		 WHERE token_hash = $1 AND is_revoked = false AND expires_at > NOW()`,
 		s,
 	)
-	row := r.db.QueryRow(ctx, q, tokenHash)
-	return scanSession(row)
+	return scanSession(r.db.QueryRow(ctx, q, tokenHash))
 }
 
 func (r *UserRepo) RevokeAllSessions(ctx context.Context, schema, userID string) error {
@@ -135,11 +129,8 @@ func (r *UserRepo) RevokeAllSessions(ctx context.Context, schema, userID string)
 	if err != nil {
 		return err
 	}
-	q := fmt.Sprintf(
-		`UPDATE %s.sessions SET is_revoked = true WHERE user_id = $1`,
-		s,
-	)
-	_, err = r.db.Exec(ctx, q, userID)
+	_, err = r.db.Exec(ctx, fmt.Sprintf(
+		`UPDATE %s.sessions SET is_revoked = true WHERE user_id = $1`, s), userID)
 	return err
 }
 
@@ -148,14 +139,32 @@ func (r *UserRepo) StoreRefreshToken(ctx context.Context, schema, userID, tokenH
 	if err != nil {
 		return err
 	}
-	q := fmt.Sprintf(
+	_, err = r.db.Exec(ctx, fmt.Sprintf(
 		`INSERT INTO %s.sessions
 		   (user_id, license_id, token_hash, hwid, ip_address, expires_at)
 		 VALUES ($1, '00000000-0000-0000-0000-000000000000', $2, '', '', $3)
 		 ON CONFLICT (token_hash) DO NOTHING`,
-		s,
-	)
-	_, err = r.db.Exec(ctx, q, userID, tokenHash, exp)
+		s), userID, tokenHash, exp)
+	return err
+}
+
+func (r *UserRepo) HeartbeatSession(ctx context.Context, schema, sessionID string) error {
+	s, err := safeSchema(schema)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.Exec(ctx, fmt.Sprintf(
+		`UPDATE %s.sessions SET last_heartbeat_at = NOW() WHERE id = $1`, s), sessionID)
+	return err
+}
+
+func (r *UserRepo) RevokeSession(ctx context.Context, schema, tokenHash string) error {
+	s, err := safeSchema(schema)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.Exec(ctx, fmt.Sprintf(
+		`UPDATE %s.sessions SET is_revoked = true WHERE token_hash = $1`, s), tokenHash)
 	return err
 }
 
@@ -183,30 +192,4 @@ func scanSession(row pgx.Row) (*model.Session, error) {
 		return nil, fmt.Errorf("scan session: %w", err)
 	}
 	return &s, nil
-}
-
-func (r *UserRepo) HeartbeatSession(ctx context.Context, schema, sessionID string) error {
-	s, err := safeSchema(schema)
-	if err != nil {
-		return err
-	}
-	q := fmt.Sprintf(
-		`UPDATE %s.sessions SET last_heartbeat_at = NOW() WHERE id = $1`,
-		s,
-	)
-	_, err = r.db.Exec(ctx, q, sessionID)
-	return err
-}
-
-func (r *UserRepo) RevokeSession(ctx context.Context, schema, tokenHash string) error {
-	s, err := safeSchema(schema)
-	if err != nil {
-		return err
-	}
-	q := fmt.Sprintf(
-		`UPDATE %s.sessions SET is_revoked = true WHERE token_hash = $1`,
-		s,
-	)
-	_, err = r.db.Exec(ctx, q, tokenHash)
-	return err
 }
