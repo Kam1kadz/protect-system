@@ -75,7 +75,7 @@ func (h *ManageHandler) ListUsers(c *fiber.Ctx) error {
 	}
 
 	rows, err := h.db.Query(c.Context(), fmt.Sprintf(
-		`SELECT id, COALESCE(uid, 0), username, email, role, hwid, last_seen_at, created_at
+		`SELECT id, username, email, role, hwid, last_seen_at, created_at
 		 FROM %s.users %s ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
 		s, where,
 	), args...)
@@ -86,7 +86,6 @@ func (h *ManageHandler) ListUsers(c *fiber.Ctx) error {
 
 	type UserRow struct {
 		ID        string  `json:"id"`
-		UID       int     `json:"uid"`
 		Username  string  `json:"username"`
 		Email     string  `json:"email"`
 		Role      string  `json:"role"`
@@ -100,7 +99,7 @@ func (h *ManageHandler) ListUsers(c *fiber.Ctx) error {
 		var u UserRow
 		var ca time.Time
 		var lsPtr *time.Time
-		if err := rows.Scan(&u.ID, &u.UID, &u.Username, &u.Email, &u.Role,
+		if err := rows.Scan(&u.ID, &u.Username, &u.Email, &u.Role,
 			&u.HWID, &lsPtr, &ca); err != nil {
 			continue
 		}
