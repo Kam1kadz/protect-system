@@ -1,5 +1,3 @@
-SET search_path TO {{SCHEMA}};
-
 -- UID для аккаунтов (автоинкремент)
 ALTER TABLE users ADD COLUMN IF NOT EXISTS uid SERIAL;
 CREATE UNIQUE INDEX IF NOT EXISTS users_uid_idx ON users (uid);

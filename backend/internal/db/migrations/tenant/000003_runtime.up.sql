@@ -1,5 +1,3 @@
-SET search_path TO {{SCHEMA}};
-
 CREATE TABLE plan_integrity (
                                 id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
                                 plan_id         UUID        NOT NULL REFERENCES subscription_plans(id) ON DELETE CASCADE,

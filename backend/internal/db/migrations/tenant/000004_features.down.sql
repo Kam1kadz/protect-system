@@ -1,5 +1,3 @@
-SET search_path TO {{SCHEMA}};
-
 DROP TABLE IF EXISTS loader_keys;
 DROP TABLE IF EXISTS partner_earnings;
 DROP TABLE IF EXISTS promo_codes;

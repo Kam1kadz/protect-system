@@ -1,5 +1,3 @@
-SET search_path TO {{SCHEMA}};
-
 ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'partner';
 ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'support';
 

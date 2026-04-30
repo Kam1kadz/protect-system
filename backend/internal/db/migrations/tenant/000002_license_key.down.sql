@@ -1,3 +1,3 @@
-ALTER TABLE {{SCHEMA}}.licenses
+ALTER TABLE licenses
 DROP COLUMN IF EXISTS license_key,
     DROP COLUMN IF EXISTS secret_key;
