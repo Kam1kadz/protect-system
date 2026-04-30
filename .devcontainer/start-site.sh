@@ -9,6 +9,10 @@ else
 fi
 
 echo "▶ API URL: $NEXT_PUBLIC_API_URL"
+if [ -z "${NEXT_PUBLIC_TENANT_ID:-}" ]; then
+  echo "⚠ NEXT_PUBLIC_TENANT_ID не установлен. Создай тенанта и экспортируй ID:"
+  echo "   bash deploy/scripts/create-tenant-local.sh arbuz \"Arbuz Client\""
+fi
 echo "▶ Запускаю Next.js на :3000..."
 
 npm install --silent
