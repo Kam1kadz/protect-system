@@ -127,8 +127,8 @@ func (h *AuthHandler) Refresh(c *fiber.Ctx) error {
 }
 
 func (h *AuthHandler) Logout(c *fiber.Ctx) error {
-	c.Cookie(&fiber.Cookie{Name: "access_token", Value: "", MaxAge: -1, HTTPOnly: true})
-	c.Cookie(&fiber.Cookie{Name: "refresh_token", Value: "", MaxAge: -1, HTTPOnly: true})
+	c.Cookie(&fiber.Cookie{Name: "access_token", Value: "", Path: "/", MaxAge: -1, HTTPOnly: true})
+	c.Cookie(&fiber.Cookie{Name: "refresh_token", Value: "", Path: "/", MaxAge: -1, HTTPOnly: true})
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
@@ -283,19 +283,27 @@ func (h *AuthHandler) ConfirmPasswordReset(c *fiber.Ctx) error {
 }
 
 func setAuthCookies(c *fiber.Ctx, pair *service.TokenPair) {
+	isSecure := c.Protocol() == "https"
+	sameSite := "Lax"
+	if isSecure {
+		sameSite = "None"
+	}
+
 	c.Cookie(&fiber.Cookie{
 		Name:     "access_token",
 		Value:    pair.AccessToken,
+		Path:     "/",
 		HTTPOnly: true,
-		Secure:   true,
-		SameSite: "Strict",
+		Secure:   isSecure,
+		SameSite: sameSite,
 	})
 	c.Cookie(&fiber.Cookie{
 		Name:     "refresh_token",
 		Value:    pair.RefreshToken,
+		Path:     "/",
 		HTTPOnly: true,
-		Secure:   true,
-		SameSite: "Strict",
-		MaxAge:   int(pair.ExpiresAt.Unix()),
+		Secure:   isSecure,
+		SameSite: sameSite,
+		MaxAge:   int(time.Until(pair.RefreshExpiresAt).Seconds()),
 	})
 }

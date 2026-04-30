@@ -31,9 +31,10 @@ func NewAuthService(users *repo.UserRepo, cfg *config.Config) *AuthService {
 }
 
 type TokenPair struct {
-	AccessToken  string
-	RefreshToken string
-	ExpiresAt    time.Time
+	AccessToken      string
+	RefreshToken     string
+	ExpiresAt        time.Time
+	RefreshExpiresAt time.Time
 }
 
 func (s *AuthService) Register(ctx context.Context, schema, username, email, password, ip string) (*model.User, error) {
@@ -118,9 +119,11 @@ func (s *AuthService) issueTokens(userID, tenantID, role string) (*TokenPair, er
 
 	_ = crypto.HashSHA256Hex([]byte(refresh))
 
+	now := time.Now()
 	return &TokenPair{
-		AccessToken:  access,
-		RefreshToken: refresh,
-		ExpiresAt:    time.Now().Add(s.cfg.JWTAccessTTL),
+		AccessToken:      access,
+		RefreshToken:     refresh,
+		ExpiresAt:        now.Add(s.cfg.JWTAccessTTL),
+		RefreshExpiresAt: now.Add(s.cfg.JWTRefreshTTL),
 	}, nil
 }
