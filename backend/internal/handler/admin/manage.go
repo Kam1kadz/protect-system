@@ -75,7 +75,7 @@ func (h *ManageHandler) ListUsers(c *fiber.Ctx) error {
 	}
 
 	rows, err := h.db.Query(c.Context(), fmt.Sprintf(
-		`SELECT id, username, email, role, hwid, last_seen_at, created_at
+		`SELECT id, uid, username, email, role, hwid, last_seen_at, created_at
 		 FROM %s.users %s ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
 		s, where,
 	), args...)
@@ -86,6 +86,7 @@ func (h *ManageHandler) ListUsers(c *fiber.Ctx) error {
 
 	type UserRow struct {
 		ID        string  `json:"id"`
+		UID       int     `json:"uid"`
 		Username  string  `json:"username"`
 		Email     string  `json:"email"`
 		Role      string  `json:"role"`
@@ -99,7 +100,7 @@ func (h *ManageHandler) ListUsers(c *fiber.Ctx) error {
 		var u UserRow
 		var ca time.Time
 		var lsPtr *time.Time
-		if err := rows.Scan(&u.ID, &u.Username, &u.Email, &u.Role,
+		if err := rows.Scan(&u.ID, &u.UID, &u.Username, &u.Email, &u.Role,
 			&u.HWID, &lsPtr, &ca); err != nil {
 			continue
 		}
@@ -322,6 +323,7 @@ func (h *ManageHandler) ListPlans(c *fiber.Ctx) error {
 
 	rows, err := h.db.Query(c.Context(), fmt.Sprintf(
 		`SELECT sp.id, sp.name, sp.display_name, sp.is_active, sp.sort_order,
+		        sp.product_type, sp.config_file_key,
 		        pt.id, pt.duration_days, pt.price, pt.currency
 		 FROM %s.subscription_plans sp
 		 LEFT JOIN %s.plan_tiers pt ON pt.plan_id = sp.id AND pt.is_active = true
@@ -343,6 +345,8 @@ func (h *ManageHandler) ListPlans(c *fiber.Ctx) error {
 		DisplayName string `json:"display_name"`
 		IsActive    bool   `json:"is_active"`
 		SortOrder   int    `json:"sort_order"`
+		ProductType string  `json:"product_type"`
+		ConfigFileKey *string `json:"config_file_key"`
 		Tiers       []Tier `json:"tiers"`
 	}
 
@@ -352,15 +356,17 @@ func (h *ManageHandler) ListPlans(c *fiber.Ctx) error {
 		var pID, pName, pDisplay string
 		var pActive bool
 		var pSort int
+		var pType string
+		var cfgKey *string
 		var tID *string
 		var tDays *int
 		var tPrice *float64
 		var tCur *string
-		if err := rows.Scan(&pID, &pName, &pDisplay, &pActive, &pSort, &tID, &tDays, &tPrice, &tCur); err != nil {
+		if err := rows.Scan(&pID, &pName, &pDisplay, &pActive, &pSort, &pType, &cfgKey, &tID, &tDays, &tPrice, &tCur); err != nil {
 			continue
 		}
 		if _, ok := plansMap[pID]; !ok {
-			plansMap[pID] = &Plan{ID: pID, Name: pName, DisplayName: pDisplay, IsActive: pActive, SortOrder: pSort, Tiers: []Tier{}}
+			plansMap[pID] = &Plan{ID: pID, Name: pName, DisplayName: pDisplay, IsActive: pActive, SortOrder: pSort, ProductType: pType, ConfigFileKey: cfgKey, Tiers: []Tier{}}
 			order = append(order, pID)
 		}
 		if tID != nil {
@@ -384,6 +390,7 @@ func (h *ManageHandler) CreatePlan(c *fiber.Ctx) error {
 		DisplayName string `json:"display_name"`
 		SortOrder   int    `json:"sort_order"`
 		ProductType string `json:"product_type"`
+		ConfigFileKey string `json:"config_file_key"`
 	}
 	if err := c.BodyParser(&body); err != nil || body.Name == "" || body.DisplayName == "" {
 		return c.Status(400).JSON(fiber.Map{"error": "name and display_name required"})
@@ -394,9 +401,9 @@ func (h *ManageHandler) CreatePlan(c *fiber.Ctx) error {
 
 	var id string
 	err := h.db.QueryRow(c.Context(), fmt.Sprintf(
-		`INSERT INTO %s.subscription_plans (id, name, display_name, sort_order, is_active, product_type)
-		 VALUES (gen_random_uuid(), $1, $2, $3, true, $4) RETURNING id`, s),
-		body.Name, body.DisplayName, body.SortOrder, body.ProductType,
+		`INSERT INTO %s.subscription_plans (id, name, display_name, sort_order, is_active, product_type, config_file_key)
+		 VALUES (gen_random_uuid(), $1, $2, $3, true, $4, NULLIF($5,'')) RETURNING id`, s),
+		body.Name, body.DisplayName, body.SortOrder, body.ProductType, body.ConfigFileKey,
 	).Scan(&id)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "db error: " + err.Error()})
@@ -414,6 +421,7 @@ func (h *ManageHandler) UpdatePlan(c *fiber.Ctx) error {
 		IsActive    *bool  `json:"is_active"`
 		SortOrder   *int   `json:"sort_order"`
 		ProductType string `json:"product_type"`
+		ConfigFileKey *string `json:"config_file_key"`
 	}
 	if err := c.BodyParser(&body); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "bad request"})
@@ -425,9 +433,10 @@ func (h *ManageHandler) UpdatePlan(c *fiber.Ctx) error {
 		     is_active     = COALESCE($2, is_active),
 		     sort_order    = COALESCE($3, sort_order),
 		     product_type  = COALESCE(NULLIF($4,''), product_type),
+		     config_file_key = COALESCE($5, config_file_key),
 		     updated_at    = NOW()
-		 WHERE id = $5`, s),
-		body.DisplayName, body.IsActive, body.SortOrder, body.ProductType, planID)
+		 WHERE id = $6`, s),
+		body.DisplayName, body.IsActive, body.SortOrder, body.ProductType, body.ConfigFileKey, planID)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "db error"})
 	}

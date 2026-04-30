@@ -16,6 +16,7 @@ export default function AdminKeysPage() {
     const qc = useQueryClient()
     const [planId, setPlanId]   = useState('')
     const [count, setCount]     = useState(1)
+    const [durationDays, setDurationDays] = useState<number>(30)
 
     const { data: keys } = useQuery<LoaderKey[]>({
         queryKey: ['admin-keys'],
@@ -28,7 +29,11 @@ export default function AdminKeysPage() {
     })
 
     const gen = useMutation({
-        mutationFn: () => adminApi.genKeys({ plan_id: planId, count }),
+        mutationFn: () => adminApi.genKeys({
+            plan_id: planId,
+            count,
+            duration_days: durationDays > 0 ? durationDays : undefined,
+        }),
         onSuccess:  () => { qc.invalidateQueries({ queryKey: ['admin-keys'] }); toast.success(`${count} keys generated`) },
         onError:    () => toast.error('Failed to generate keys'),
     })
@@ -42,11 +47,18 @@ export default function AdminKeysPage() {
         <div className="flex flex-col gap-6">
             <h1 className="text-2xl font-bold">Loader Keys</h1>
 
-            <Card className="flex flex-wrap items-end gap-4">
-                <div className="flex flex-col gap-1">
-                    <label className="text-xs text-[--muted]">Plan</label>
+            <Card style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: '16px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label style={{ fontSize: '12px', color: 'var(--muted)' }}>Plan</label>
                     <select
-                        className="rounded-lg border border-[--border] bg-[--surface] px-3 py-2 text-sm text-white"
+                        style={{
+                            borderRadius: '10px',
+                            border: '1px solid var(--border)',
+                            background: 'var(--surface)',
+                            padding: '8px 12px',
+                            fontSize: '14px',
+                            color: '#fff',
+                        }}
                         value={planId}
                         onChange={e => setPlanId(e.target.value)}
                     >
@@ -56,13 +68,22 @@ export default function AdminKeysPage() {
                         ))}
                     </select>
                 </div>
-                <div className="flex flex-col gap-1">
-                    <label className="text-xs text-[--muted]">Count (max 100)</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label style={{ fontSize: '12px', color: 'var(--muted)' }}>Count (max 100)</label>
                     <Input
                         type="number" min={1} max={100}
                         value={count}
                         onChange={e => setCount(Number(e.target.value))}
                         className="w-24"
+                    />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label style={{ fontSize: '12px', color: 'var(--muted)' }}>Duration (days)</label>
+                    <Input
+                        type="number" min={1} max={3650}
+                        value={durationDays}
+                        onChange={e => setDurationDays(Number(e.target.value))}
+                        className="w-28"
                     />
                 </div>
                 <Button onClick={() => gen.mutate()} disabled={!planId} loading={gen.isPending}>
@@ -72,13 +93,14 @@ export default function AdminKeysPage() {
 
             <Table>
                 <Thead>
-                    <Th>Key</Th><Th>Plan</Th><Th>Used</Th><Th>Used By</Th><Th>Created</Th><Th></Th>
+                    <Th>Key</Th><Th>Plan</Th><Th>Days</Th><Th>Used</Th><Th>Used By</Th><Th>Created</Th><Th></Th>
                 </Thead>
                 <Tbody>
                     {(keys ?? []).map(k => (
                         <Tr key={k.id}>
                             <Td className="font-mono text-xs">{k.key_value}</Td>
                             <Td>{k.plan_name}</Td>
+                            <Td>{k.duration_days ?? 30}</Td>
                             <Td><Badge value={k.is_used ? 'active' : 'pending'} /></Td>
                             <Td>{k.used_by ?? '—'}</Td>
                             <Td>{formatDate(k.created_at)}</Td>

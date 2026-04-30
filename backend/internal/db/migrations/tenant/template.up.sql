@@ -24,7 +24,7 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
-    CREATE TYPE mc_version AS ENUM ('1.16.5', '1.21.4');
+    CREATE TYPE mc_version AS ENUM ('1.16.5', '1.19.4');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
@@ -86,6 +86,7 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 CREATE TABLE IF NOT EXISTS users (
     id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    uid            SERIAL,
     username       TEXT        NOT NULL UNIQUE,
     email          TEXT        NOT NULL UNIQUE,
     password_hash  TEXT        NOT NULL,
@@ -102,6 +103,7 @@ CREATE INDEX IF NOT EXISTS idx_users_email    ON users (email);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users (username);
 CREATE INDEX IF NOT EXISTS idx_users_hwid     ON users (hwid) WHERE hwid IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_users_role     ON users (role);
+CREATE UNIQUE INDEX IF NOT EXISTS users_uid_idx ON users (uid);
 
 -- ── Subscription plans ────────────────────────────────────────────────────────
 
@@ -110,6 +112,8 @@ CREATE TABLE IF NOT EXISTS subscription_plans (
     name            TEXT        NOT NULL UNIQUE,
     display_name    TEXT        NOT NULL,
     jar_storage_key TEXT,
+    product_type    TEXT        NOT NULL DEFAULT 'subscription',
+    config_file_key TEXT,
     is_active       BOOLEAN     NOT NULL DEFAULT true,
     sort_order      INT         NOT NULL DEFAULT 0,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -356,6 +360,7 @@ CREATE TABLE IF NOT EXISTS loader_keys (
     key_value  TEXT        NOT NULL UNIQUE,
     plan_id    UUID        NOT NULL REFERENCES subscription_plans(id) ON DELETE CASCADE,
     tier_id    UUID        REFERENCES plan_tiers(id) ON DELETE SET NULL,
+    duration_days INT,
     is_used    BOOLEAN     NOT NULL DEFAULT false,
     used_by    UUID        REFERENCES users(id) ON DELETE SET NULL,
     used_at    TIMESTAMPTZ,

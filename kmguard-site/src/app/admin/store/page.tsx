@@ -8,18 +8,18 @@ import { toast } from 'sonner'
 import { Plus, Trash2, Edit2, ChevronDown, ChevronUp, Check, X } from 'lucide-react'
 
 type Tier = { id?: string; duration_days: number; price: number; currency: string }
-type Plan = { id: string; name: string; display_name: string; is_active: boolean; sort_order: number; tiers: Tier[] }
+type Plan = { id: string; name: string; display_name: string; is_active: boolean; sort_order: number; product_type?: string; config_file_key?: string | null; tiers: Tier[] }
 
 const EMPTY_TIER: Tier = { duration_days: 30, price: 9.99, currency: 'USD' }
 
 export default function AdminStorePage() {
     const qc = useQueryClient()
     const [showNewPlan, setShowNewPlan] = useState(false)
-    const [newPlan, setNewPlan] = useState({ name: '', display_name: '', sort_order: 0 })
+    const [newPlan, setNewPlan] = useState({ name: '', display_name: '', sort_order: 0, product_type: 'subscription', config_file_key: '' })
     const [expandedPlan, setExpandedPlan] = useState<string | null>(null)
     const [newTier, setNewTier] = useState<Record<string, Tier>>({})
     const [editingPlan, setEditingPlan] = useState<string | null>(null)
-    const [editVals, setEditVals] = useState<{ display_name: string; is_active: boolean }>({ display_name: '', is_active: true })
+    const [editVals, setEditVals] = useState<{ display_name: string; is_active: boolean; product_type: string; config_file_key: string }>({ display_name: '', is_active: true, product_type: 'subscription', config_file_key: '' })
 
     const { data: plans, isLoading } = useQuery<Plan[]>({
         queryKey: ['admin-plans'],
@@ -28,7 +28,7 @@ export default function AdminStorePage() {
 
     const createPlan = useMutation({
         mutationFn: () => adminApi.createPlan(newPlan),
-        onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-plans'] }); setShowNewPlan(false); setNewPlan({ name: '', display_name: '', sort_order: 0 }); toast.success('Plan created') },
+        onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-plans'] }); setShowNewPlan(false); setNewPlan({ name: '', display_name: '', sort_order: 0, product_type: 'subscription', config_file_key: '' }); toast.success('Plan created') },
         onError: () => toast.error('Failed to create plan'),
     })
 
@@ -94,6 +94,31 @@ export default function AdminStorePage() {
                                 style={{ background: '#1c1c1f', border: '1px solid #27272a', borderRadius: '8px', color: '#fafafa', fontSize: '13px', padding: '8px 10px', outline: 'none', width: '70px' }} />
                         </div>
                     </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: '10px', marginBottom: '14px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <label style={{ fontSize: '11px', color: '#71717a' }}>Product type</label>
+                            <select
+                                value={newPlan.product_type}
+                                onChange={e => setNewPlan(p => ({ ...p, product_type: e.target.value }))}
+                                style={{ background: '#1c1c1f', border: '1px solid #27272a', borderRadius: '8px', color: '#fafafa', fontSize: '13px', padding: '8px 10px', outline: 'none' }}
+                            >
+                                <option value="subscription">Subscription</option>
+                                <option value="hwid_reset">HWID reset</option>
+                                <option value="config">Config</option>
+                            </select>
+                        </div>
+                        {newPlan.product_type === 'config' && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <label style={{ fontSize: '11px', color: '#71717a' }}>Config file key</label>
+                                <input
+                                    value={newPlan.config_file_key}
+                                    onChange={e => setNewPlan(p => ({ ...p, config_file_key: e.target.value }))}
+                                    placeholder="storage key or identifier"
+                                    style={{ background: '#1c1c1f', border: '1px solid #27272a', borderRadius: '8px', color: '#fafafa', fontSize: '13px', padding: '8px 10px', outline: 'none' }}
+                                />
+                            </div>
+                        )}
+                    </div>
                     <div style={{ display: 'flex', gap: '8px' }}>
                         <Button size="sm" variant="outline" onClick={() => setShowNewPlan(false)}><X size={13} /> Cancel</Button>
                         <Button size="sm" loading={createPlan.isPending} disabled={!newPlan.name || !newPlan.display_name} onClick={() => createPlan.mutate()}>
@@ -135,7 +160,15 @@ export default function AdminStorePage() {
                                         </Button>
                                     </>
                                 ) : (
-                                    <button onClick={() => { setEditingPlan(plan.id); setEditVals({ display_name: plan.display_name, is_active: plan.is_active }) }}
+                                    <button onClick={() => {
+                                        setEditingPlan(plan.id)
+                                        setEditVals({
+                                            display_name: plan.display_name,
+                                            is_active: plan.is_active,
+                                            product_type: plan.product_type ?? 'subscription',
+                                            config_file_key: plan.config_file_key ?? '',
+                                        })
+                                    }}
                                         style={{ background: '#1c1c1f', border: '1px solid #27272a', borderRadius: '6px', padding: '5px 8px', cursor: 'pointer', color: '#a1a1aa', display: 'flex', alignItems: 'center' }}>
                                         <Edit2 size={13} />
                                     </button>
@@ -154,6 +187,44 @@ export default function AdminStorePage() {
                         {/* Tiers */}
                         {expanded && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                {/* Plan settings */}
+                                {editing && (
+                                    <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr 180px', gap: '10px', background: '#111113', borderRadius: '10px', border: '1px solid #1c1c1f', padding: '12px 14px' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                            <label style={{ fontSize: '11px', color: '#71717a' }}>Product type</label>
+                                            <select
+                                                value={editVals.product_type}
+                                                onChange={e => setEditVals(v => ({ ...v, product_type: e.target.value }))}
+                                                style={{ background: '#1c1c1f', border: '1px solid #27272a', borderRadius: '8px', color: '#fafafa', fontSize: '13px', padding: '8px 10px', outline: 'none' }}
+                                            >
+                                                <option value="subscription">Subscription</option>
+                                                <option value="hwid_reset">HWID reset</option>
+                                                <option value="config">Config</option>
+                                            </select>
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                            <label style={{ fontSize: '11px', color: '#71717a' }}>Config file key</label>
+                                            <input
+                                                value={editVals.config_file_key}
+                                                onChange={e => setEditVals(v => ({ ...v, config_file_key: e.target.value }))}
+                                                placeholder="storage key or identifier"
+                                                disabled={editVals.product_type !== 'config'}
+                                                style={{ background: '#1c1c1f', border: '1px solid #27272a', borderRadius: '8px', color: '#fafafa', fontSize: '13px', padding: '8px 10px', outline: 'none', opacity: editVals.product_type === 'config' ? 1 : 0.5 }}
+                                            />
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                            <label style={{ fontSize: '11px', color: '#71717a' }}>Active</label>
+                                            <select
+                                                value={editVals.is_active ? 'true' : 'false'}
+                                                onChange={e => setEditVals(v => ({ ...v, is_active: e.target.value === 'true' }))}
+                                                style={{ background: '#1c1c1f', border: '1px solid #27272a', borderRadius: '8px', color: '#fafafa', fontSize: '13px', padding: '8px 10px', outline: 'none' }}
+                                            >
+                                                <option value="true">Active</option>
+                                                <option value="false">Inactive</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                )}
                                 <p style={{ margin: 0, fontSize: '11px', color: '#52525b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pricing Tiers ({(plan.tiers ?? []).length})</p>
 
                                 {(plan.tiers ?? []).map(t => (

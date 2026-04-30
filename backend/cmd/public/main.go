@@ -127,6 +127,11 @@ func main() {
 		middleware.RateLimit(redisClient, "store", 5, time.Minute),
 		storeH.Activate,
 	)
+	store.Post("/hwid-reset",
+		middleware.JWTAuth(cfg.JWTAccessSecret, "access"),
+		middleware.RateLimit(redisClient, "store", 5, time.Minute),
+		storeH.ResetHWID,
+	)
 
 	// ── Loader ─────────────────────────────────────────────────────────────
 	loader := v1.Group("/loader")
@@ -183,6 +188,8 @@ func main() {
 	lics := adm.Group("/licenses")
 	lics.Get("/",       manageH.ListLicenses)
 	lics.Delete("/:id", manageH.RevokeLicense)
+	lics.Post("/:id/unlock", middleware.RequireRoles("admin"), manageH.UnlockLicense)
+	lics.Patch("/:id/expires", middleware.RequireRoles("admin"), manageH.UpdateLicenseExpiry)
 
 	plans := adm.Group("/plans")
 	plans.Get("/",                          manageH.ListPlans)

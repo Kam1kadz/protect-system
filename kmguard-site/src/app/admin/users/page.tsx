@@ -10,8 +10,6 @@ import { hasPermission } from '@/types'
 import { toast } from 'sonner'
 import { Search, RefreshCw, ShieldOff, Shield, RotateCcw, Crown } from 'lucide-react'
 
-const ROLES = ['user','partner','support','admin']
-
 export default function AdminUsersPage() {
     const [search, setSearch]     = useState('')
     const [page, setPage]         = useState(1)
@@ -30,6 +28,13 @@ export default function AdminUsersPage() {
         queryKey: ['plans'],
         queryFn:  () => api.get('/api/v1/auth/plans').then(r => r.data.plans ?? []),
     })
+
+    const { data: rolesData } = useQuery({
+        queryKey: ['admin-roles'],
+        queryFn: () => adminApi.roles().then(r => r.data.roles ?? []),
+    })
+
+    const roleOptions: string[] = (rolesData ?? []).map((r: any) => r.role_name)
 
     const users = data?.users ?? []
     const invalidate = () => qc.invalidateQueries({ queryKey: ['admin-users'] })
@@ -79,23 +84,24 @@ export default function AdminUsersPage() {
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                         <tr style={{ borderBottom: '1px solid #1c1c1f', background: '#0d0d0f' }}>
-                            {['Username','Email','Role','HWID','Registered','Actions'].map(h => (
+                            {['UID','Username','Email','Role','HWID','Registered','Actions'].map(h => (
                                 <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: '#52525b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
                             ))}
                         </tr>
                     </thead>
                     <tbody>
                         {isLoading && (
-                            <tr><td colSpan={6} style={{ padding: '32px', textAlign: 'center', color: '#52525b', fontSize: '13px' }}>Loading…</td></tr>
+                            <tr><td colSpan={7} style={{ padding: '32px', textAlign: 'center', color: '#52525b', fontSize: '13px' }}>Loading…</td></tr>
                         )}
                         {isError && (
-                            <tr><td colSpan={6} style={{ padding: '32px', textAlign: 'center', color: '#ef4444', fontSize: '13px' }}>Failed to load users. Check backend.</td></tr>
+                            <tr><td colSpan={7} style={{ padding: '32px', textAlign: 'center', color: '#ef4444', fontSize: '13px' }}>Failed to load users. Check backend.</td></tr>
                         )}
                         {!isLoading && users.length === 0 && (
-                            <tr><td colSpan={6} style={{ padding: '32px', textAlign: 'center', color: '#52525b', fontSize: '13px' }}>No users found</td></tr>
+                            <tr><td colSpan={7} style={{ padding: '32px', textAlign: 'center', color: '#52525b', fontSize: '13px' }}>No users found</td></tr>
                         )}
                         {users.map((u: any, i: number) => (
                             <tr key={u.id} style={{ borderBottom: i < users.length-1 ? '1px solid #1c1c1f' : 'none', background: i % 2 === 0 ? '#111113' : '#0d0d0f' }}>
+                                <td style={{ padding: '10px 14px', fontSize: '12px', fontFamily: 'monospace', color: '#a1a1aa' }}>{u.uid ?? '—'}</td>
                                 <td style={{ padding: '10px 14px', fontSize: '13px', fontWeight: 500, color: '#fafafa' }}>{u.username}</td>
                                 <td style={{ padding: '10px 14px', fontSize: '12px', color: '#71717a' }}>{u.email}</td>
                                 <td style={{ padding: '10px 14px' }}>
@@ -105,7 +111,10 @@ export default function AdminUsersPage() {
                                             onChange={e => setRoleMut.mutate({ id: u.id, r: e.target.value })}
                                             style={{ background: '#1c1c1f', border: '1px solid #27272a', borderRadius: '6px', color: '#fafafa', fontSize: '12px', padding: '3px 6px', cursor: 'pointer' }}
                                         >
-                                            {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                                            {roleOptions.length > 0
+                                                ? roleOptions.map(r => <option key={r} value={r}>{r}</option>)
+                                                : <option value={u.role}>{u.role}</option>
+                                            }
                                         </select>
                                     ) : <Badge value={u.role} />}
                                 </td>

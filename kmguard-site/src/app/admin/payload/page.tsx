@@ -8,13 +8,13 @@ import { toast } from 'sonner'
 import { Upload, Trash2, CheckCircle, Package, AlertCircle, CloudUpload } from 'lucide-react'
 import type { Plan } from '@/types'
 
-const MC_VERSIONS = ['1.8.9','1.12.2','1.16.5','1.17.1','1.18.2','1.19.4','1.20.1','1.20.4','1.21']
+const MC_VERSIONS = ['1.16.5', '1.19.4']
 
 export default function AdminPayloadPage() {
     const qc = useQueryClient()
     const fileRef = useRef<HTMLInputElement>(null)
     const [planId, setPlanId] = useState('')
-    const [mcVer, setMcVer] = useState('1.8.9')
+    const [mcVer, setMcVer] = useState('1.16.5')
     const [dragging, setDragging] = useState(false)
     const [selectedFile, setSelectedFile] = useState<File | null>(null)
 

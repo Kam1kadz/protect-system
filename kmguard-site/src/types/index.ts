@@ -46,6 +46,7 @@ export function hasPermission(role: UserRole, perm: Permission): boolean {
 
 export interface AuthUser {
     id:       string
+    uid?:     number
     username: string
     email:    string
     role:     UserRole
@@ -96,6 +97,7 @@ export interface LoaderKey {
     used_by:   string | null
     used_at:   string | null
     created_at:string
+    duration_days?: number
 }
 
 export interface RuntimeEvent {

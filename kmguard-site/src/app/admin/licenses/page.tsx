@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
-import { ShieldOff, Search, Copy, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ShieldOff, Search, Copy, ChevronLeft, ChevronRight, LockOpen, CalendarClock } from 'lucide-react'
 
 type LicRow = {
     id: string; username: string; plan_name: string; status: string
@@ -17,6 +17,8 @@ export default function AdminLicensesPage() {
     const qc = useQueryClient()
     const [page, setPage] = useState(1)
     const [search, setSearch] = useState('')
+    const [editing, setEditing] = useState<LicRow | null>(null)
+    const [expiresDraft, setExpiresDraft] = useState('')
 
     const { data, isLoading } = useQuery<LicRow[]>({
         queryKey: ['admin-licenses', page],
@@ -27,6 +29,23 @@ export default function AdminLicensesPage() {
         mutationFn: (id: string) => adminApi.revokeLic(id),
         onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-licenses'] }); toast.success('License revoked') },
         onError: () => toast.error('Failed to revoke'),
+    })
+
+    const unlock = useMutation({
+        mutationFn: (id: string) => adminApi.unlockLic(id),
+        onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-licenses'] }); toast.success('License unlocked') },
+        onError: () => toast.error('Failed to unlock'),
+    })
+
+    const setExpiry = useMutation({
+        mutationFn: ({ id, expires_at }: { id: string; expires_at: string }) => adminApi.setLicExpiry(id, expires_at),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['admin-licenses'] })
+            toast.success('Expiry updated')
+            setEditing(null)
+            setExpiresDraft('')
+        },
+        onError: () => toast.error('Failed to update expiry'),
     })
 
     const filtered = (data ?? []).filter(l =>
@@ -90,17 +109,47 @@ export default function AdminLicensesPage() {
                                     </td>
                                     <td style={{ padding: '12px 14px', fontSize: '12px', color: '#71717a' }}>{formatDate(l.created_at)}</td>
                                     <td style={{ padding: '12px 14px' }}>
-                                        {l.status !== 'banned' && (
-                                            <button onClick={() => { if (confirm(`Revoke license for ${l.username}?`)) revoke.mutate(l.id) }}
+                                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                            <button
+                                                onClick={() => {
+                                                    setEditing(l)
+                                                    setExpiresDraft(l.expires_at.slice(0, 16))
+                                                }}
                                                 style={{
                                                     display: 'flex', alignItems: 'center', gap: '4px',
-                                                    background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+                                                    background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)',
                                                     borderRadius: '6px', padding: '5px 10px', cursor: 'pointer',
-                                                    color: '#ef4444', fontSize: '12px', fontWeight: 500,
-                                                }}>
-                                                <ShieldOff size={12} /> Revoke
+                                                    color: '#93c5fd', fontSize: '12px', fontWeight: 500,
+                                                }}
+                                            >
+                                                <CalendarClock size={12} /> Expiry
                                             </button>
-                                        )}
+                                            {l.status === 'banned' ? (
+                                                <button
+                                                    onClick={() => unlock.mutate(l.id)}
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', gap: '4px',
+                                                        background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)',
+                                                        borderRadius: '6px', padding: '5px 10px', cursor: 'pointer',
+                                                        color: '#22c55e', fontSize: '12px', fontWeight: 500,
+                                                    }}
+                                                >
+                                                    <LockOpen size={12} /> Unlock
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    onClick={() => { if (confirm(`Revoke license for ${l.username}?`)) revoke.mutate(l.id) }}
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', gap: '4px',
+                                                        background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+                                                        borderRadius: '6px', padding: '5px 10px', cursor: 'pointer',
+                                                        color: '#ef4444', fontSize: '12px', fontWeight: 500,
+                                                    }}
+                                                >
+                                                    <ShieldOff size={12} /> Revoke
+                                                </button>
+                                            )}
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
@@ -115,6 +164,58 @@ export default function AdminLicensesPage() {
                 <span style={{ fontSize: '13px', color: '#71717a', lineHeight: '30px' }}>Page {page}</span>
                 <Button size="sm" variant="outline" disabled={(data ?? []).length < 50} onClick={() => setPage(p => p + 1)}><ChevronRight size={14} /></Button>
             </div>
+
+            {editing && (
+                <div
+                    style={{
+                        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60,
+                    }}
+                    onClick={() => setEditing(null)}
+                >
+                    <div
+                        style={{
+                            background: '#111113', border: '1px solid #1c1c1f',
+                            borderRadius: '16px', padding: '22px', width: '380px',
+                            display: 'flex', flexDirection: 'column', gap: '14px',
+                        }}
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}>
+                            <div>
+                                <div style={{ fontSize: '14px', fontWeight: 700 }}>Change expiry</div>
+                                <div style={{ fontSize: '12px', color: '#71717a', marginTop: '2px' }}>{editing.username} • {editing.plan_name}</div>
+                            </div>
+                            <Button size="sm" variant="outline" onClick={() => setEditing(null)}>Close</Button>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <label style={{ fontSize: '11px', color: '#71717a' }}>Expires at</label>
+                            <input
+                                type="datetime-local"
+                                value={expiresDraft}
+                                onChange={e => setExpiresDraft(e.target.value)}
+                                style={{
+                                    background: '#1c1c1f', border: '1px solid #27272a', borderRadius: '10px',
+                                    color: '#fafafa', fontSize: '13px', padding: '10px 12px', outline: 'none',
+                                }}
+                            />
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                            <Button size="sm" variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
+                            <Button
+                                size="sm"
+                                loading={setExpiry.isPending}
+                                disabled={!expiresDraft}
+                                onClick={() => setExpiry.mutate({ id: editing.id, expires_at: new Date(expiresDraft).toISOString() })}
+                            >
+                                Save
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

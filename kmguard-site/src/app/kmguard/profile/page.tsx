@@ -148,6 +148,7 @@ export default function ProfilePage() {
     const role      = data?.role      ?? 'user'
     const hwid      = data?.hwid      ?? null
     const licenses: License[] = licData ?? []
+    const usableLicenses = licenses.filter(l => l.status !== 'banned')
     const activeLic = licenses.find(l => l.status === 'active')
     const isLocked  = role === 'banned'
 
@@ -277,12 +278,21 @@ export default function ProfilePage() {
                         <div style={{ padding: '16px 20px', borderBottom: '1px solid #1c1c1f', marginTop: '4px' }}>
                             <div style={{ fontWeight: 600, fontSize: '14px' }}>Advanced Settings</div>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', fontSize: '13px' }}>
+                        <div
+                            onClick={() => { if (hwid) window.location.href = '/kmguard/store?focus=hwid_reset' }}
+                            style={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                padding: '14px 20px', fontSize: '13px',
+                                cursor: hwid ? 'pointer' : 'default',
+                            }}
+                            onMouseEnter={e => { if (hwid) e.currentTarget.style.background = '#111113' }}
+                            onMouseLeave={e => { if (hwid) e.currentTarget.style.background = 'transparent' }}
+                        >
                             <span style={{ color: '#71717a' }}>HWID</span>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#a1a1aa' }}>{hwid ?? '—'}</span>
                                 {hwid && (
-                                    <button onClick={() => { navigator.clipboard.writeText(hwid); toast.success('Copied!') }}
+                                    <button onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(hwid); toast.success('Copied!') }}
                                         style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#52525b', padding: '2px' }}>
                                         <Copy size={12} />
                                     </button>
@@ -320,7 +330,7 @@ export default function ProfilePage() {
                             <div style={{ fontSize: '12px', color: '#52525b', marginTop: '2px' }}>Select which version to use when launching</div>
                         </div>
                         <div style={{ padding: '14px 20px' }}>
-                            {licenses.length === 0 ? (
+                            {usableLicenses.length === 0 ? (
                                 <span style={{ fontSize: '12px', color: '#52525b' }}>No active subscriptions available</span>
                             ) : (
                                 <select
@@ -333,7 +343,7 @@ export default function ProfilePage() {
                                     }}
                                 >
                                     <option value="">Select version…</option>
-                                    {licenses.map(l => (
+                                    {usableLicenses.map(l => (
                                         <option key={l.id} value={l.plan_name}>
                                             {l.plan_display_name ?? l.plan_name}
                                         </option>

@@ -2,9 +2,11 @@ package public
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/ps/backend/internal/crypto"
 	"github.com/ps/backend/internal/middleware"
@@ -75,27 +77,50 @@ func (h *StoreHandler) Activate(c *fiber.Ctx) error {
 
 	var body struct {
 		Key       string `json:"key"`
+		TierID    string `json:"tier_id"`
 		PromoCode string `json:"promo_code"`
 	}
-	if err := c.BodyParser(&body); err != nil || body.Key == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "key required"})
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "bad request"})
+	}
+	body.Key = strings.TrimSpace(body.Key)
+	body.TierID = strings.TrimSpace(body.TierID)
+	if body.Key == "" && body.TierID == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "key or tier_id required"})
 	}
 
-	var keyID, planID string
-	var tierID *string
-	var isUsed bool
+	var (
+		keyID  *string
+		planID string
+		tierID *string
+		isUsed bool
+	)
 
-	err := h.db.QueryRow(c.Context(), fmt.Sprintf(
-		`SELECT id, plan_id, tier_id, is_used
-		 FROM %s.loader_keys WHERE key_value = $1`, s),
-		body.Key,
-	).Scan(&keyID, &planID, &tierID, &isUsed)
-
-	if err != nil {
-		return c.Status(404).JSON(fiber.Map{"error": "invalid key"})
-	}
-	if isUsed {
-		return c.Status(400).JSON(fiber.Map{"error": "key already used"})
+	if body.Key != "" {
+		var kid, pid string
+		err := h.db.QueryRow(c.Context(), fmt.Sprintf(
+			`SELECT id, plan_id, tier_id, is_used
+			 FROM %s.loader_keys WHERE key_value = $1`, s),
+			body.Key,
+		).Scan(&kid, &pid, &tierID, &isUsed)
+		if err != nil {
+			return c.Status(404).JSON(fiber.Map{"error": "invalid key"})
+		}
+		if isUsed {
+			return c.Status(400).JSON(fiber.Map{"error": "key already used"})
+		}
+		keyID = &kid
+		planID = pid
+	} else {
+		// активация по tier_id (покупка плана)
+		tierID = &body.TierID
+		err := h.db.QueryRow(c.Context(), fmt.Sprintf(
+			`SELECT plan_id FROM %s.plan_tiers WHERE id = $1 AND is_active = true`, s),
+			body.TierID,
+		).Scan(&planID)
+		if err != nil {
+			return c.Status(404).JSON(fiber.Map{"error": "tier not found"})
+		}
 	}
 
 	durationDays := 30
@@ -104,14 +129,14 @@ func (h *StoreHandler) Activate(c *fiber.Ctx) error {
 			`SELECT duration_days FROM %s.plan_tiers WHERE id = $1`, s),
 			*tierID,
 		).Scan(&durationDays)
-	} else {
+	} else if keyID != nil {
 		// попробуем взять duration_days прямо из ключа (если задано при генерации)
-		var keyDays *int
+		var keyDays pgtype.Int4
 		_ = h.db.QueryRow(c.Context(), fmt.Sprintf(
-			`SELECT duration_days FROM %s.loader_keys WHERE id = $1`, s), keyID,
+			`SELECT duration_days FROM %s.loader_keys WHERE id = $1`, s), *keyID,
 		).Scan(&keyDays)
-		if keyDays != nil && *keyDays > 0 {
-			durationDays = *keyDays
+		if keyDays.Valid && keyDays.Int32 > 0 {
+			durationDays = int(keyDays.Int32)
 		}
 	}
 
@@ -156,6 +181,47 @@ func (h *StoreHandler) Activate(c *fiber.Ctx) error {
 			_, _ = h.db.Exec(c.Context(), fmt.Sprintf(
 				`UPDATE %s.promo_codes SET uses_total = uses_total + 1 WHERE id = $1`, s), pid)
 		}
+	}
+
+	// Определяем тип товара
+	var productType string
+	var configFileKey *string
+	_ = h.db.QueryRow(c.Context(), fmt.Sprintf(
+		`SELECT COALESCE(product_type,'subscription'), config_file_key
+		 FROM %s.subscription_plans WHERE id = $1`, s),
+		planID,
+	).Scan(&productType, &configFileKey)
+
+	if productType == "hwid_reset" {
+		// сброс HWID (как услуга)
+		_, _ = h.db.Exec(c.Context(), fmt.Sprintf(
+			`UPDATE %s.users SET hwid = NULL, hwid_locked_at = NULL WHERE id = $1`, s), userID)
+		_, _ = h.db.Exec(c.Context(), fmt.Sprintf(
+			`UPDATE %s.licenses SET hwid_snapshot = NULL WHERE user_id = $1`, s), userID)
+		_, _ = h.db.Exec(c.Context(), fmt.Sprintf(
+			`INSERT INTO %s.hwid_records (user_id, hwid_old, hwid_new, reason)
+			 VALUES ($1, NULL, '', 'reset_purchase')`, s), userID)
+
+		if keyID != nil {
+			_, _ = h.db.Exec(c.Context(), fmt.Sprintf(
+				`UPDATE %s.loader_keys SET is_used = true, used_by = $1, used_at = NOW() WHERE id = $2`, s),
+				userID, *keyID)
+		}
+
+		return c.Status(201).JSON(fiber.Map{"ok": true, "product_type": "hwid_reset"})
+	}
+
+	if productType == "config" {
+		if keyID != nil {
+			_, _ = h.db.Exec(c.Context(), fmt.Sprintf(
+				`UPDATE %s.loader_keys SET is_used = true, used_by = $1, used_at = NOW() WHERE id = $2`, s),
+				userID, *keyID)
+		}
+		return c.Status(201).JSON(fiber.Map{
+			"ok":             true,
+			"product_type":   "config",
+			"config_file_key": configFileKey,
+		})
 	}
 
 	// Проверяем: есть ли уже активная незаблокированная лицензия на этот план?
@@ -213,11 +279,13 @@ func (h *StoreHandler) Activate(c *fiber.Ctx) error {
 		}
 	}
 
-	_, _ = h.db.Exec(c.Context(), fmt.Sprintf(
-		`UPDATE %s.loader_keys
-		 SET is_used = true, used_by = $1, used_at = NOW()
-		 WHERE id = $2`, s),
-		userID, keyID)
+	if keyID != nil {
+		_, _ = h.db.Exec(c.Context(), fmt.Sprintf(
+			`UPDATE %s.loader_keys
+			 SET is_used = true, used_by = $1, used_at = NOW()
+			 WHERE id = $2`, s),
+			userID, *keyID)
+	}
 
 	_, _ = h.db.Exec(c.Context(), fmt.Sprintf(
 		`INSERT INTO %s.audit_log (user_id, event_type, severity, ip_address, payload)
@@ -234,4 +302,34 @@ func (h *StoreHandler) Activate(c *fiber.Ctx) error {
 		"expires_at":  finalExpires.Format(time.RFC3339),
 		"plan_id":     planID,
 	})
+}
+
+// ResetHWID — покупка услуги "сброс HWID" (упрощённая выдача без провайдера оплаты)
+func (h *StoreHandler) ResetHWID(c *fiber.Ctx) error {
+	schema := c.Locals(middleware.SchemaKey()).(string)
+	s, _ := safeSchema(schema)
+
+	cl := storeClaims(c)
+	if cl == nil {
+		return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+	}
+	userID := cl.UserID
+
+	// Сбрасываем HWID у пользователя и снепшоты у лицензий
+	_, _ = h.db.Exec(c.Context(), fmt.Sprintf(
+		`UPDATE %s.users SET hwid = NULL, hwid_locked_at = NULL WHERE id = $1`, s), userID)
+	_, _ = h.db.Exec(c.Context(), fmt.Sprintf(
+		`UPDATE %s.licenses SET hwid_snapshot = NULL WHERE user_id = $1`, s), userID)
+
+	// Пишем историю (если таблица есть)
+	_, _ = h.db.Exec(c.Context(), fmt.Sprintf(
+		`INSERT INTO %s.hwid_records (user_id, hwid_old, hwid_new, reason)
+		 VALUES ($1, NULL, '', 'reset_purchase')`, s), userID)
+
+	_, _ = h.db.Exec(c.Context(), fmt.Sprintf(
+		`INSERT INTO %s.audit_log (user_id, event_type, severity, ip_address, payload)
+		 VALUES ($1, 'hwid_reset_purchased', 'info', $2, '{}')`, s),
+		userID, c.IP())
+
+	return c.JSON(fiber.Map{"ok": true})
 }

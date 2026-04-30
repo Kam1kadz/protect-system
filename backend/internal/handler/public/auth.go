@@ -150,6 +150,7 @@ func (h *AuthHandler) Me(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{
 		"id":        user.ID,
+		"uid":       user.UID,
 		"username":  user.Username,
 		"email":     user.Email,
 		"role":      user.Role,

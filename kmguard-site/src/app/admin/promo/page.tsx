@@ -6,7 +6,7 @@ import { Table, Thead, Th, Tbody, Tr, Td } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card } from '@/components/ui/card'
+import { Card, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Trash2 } from 'lucide-react'
@@ -51,6 +51,10 @@ export default function AdminPromoPage() {
             <h1 className="text-2xl font-bold">Promo Codes</h1>
 
             <Card>
+                <CardHeader>
+                    <CardTitle>Create promo code</CardTitle>
+                    <span style={{ fontSize: '12px', color: '#71717a' }}>Discount + partner earnings</span>
+                </CardHeader>
                 <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
                     <div className="flex flex-col gap-1">
                         <label className="text-xs text-[--muted]">Code *</label>

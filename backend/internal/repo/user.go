@@ -18,7 +18,7 @@ func NewUserRepo(db *pgxpool.Pool) *UserRepo {
 	return &UserRepo{db: db}
 }
 
-const selectUserCols = `id, username, email, password_hash, role,
+const selectUserCols = `id, uid, username, email, password_hash, role,
 	hwid, hwid_locked_at,
 	ip_registered::text, ip_last::text,
 	last_seen_at, created_at`
@@ -171,7 +171,7 @@ func (r *UserRepo) RevokeSession(ctx context.Context, schema, tokenHash string) 
 func scanUser(row pgx.Row) (*model.User, error) {
 	var u model.User
 	err := row.Scan(
-		&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.Role,
+		&u.ID, &u.UID, &u.Username, &u.Email, &u.PasswordHash, &u.Role,
 		&u.HWID, &u.HWIDLockedAt, &u.IPRegistered, &u.IPLast,
 		&u.LastSeenAt, &u.CreatedAt,
 	)

@@ -3,9 +3,9 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { Check, Zap, Tag } from 'lucide-react'
+import { Check, Zap, Tag, RotateCcw } from 'lucide-react'
 import type { Plan } from '@/types'
 
 const PLAN_FEATURES = ['Anti-cheat bypass', 'All visual modules', 'Auto updates', 'Priority support', 'Discord access']
@@ -13,6 +13,13 @@ const PLAN_FEATURES = ['Anti-cheat bypass', 'All visual modules', 'Auto updates'
 export default function StorePage() {
     const [promoCode, setPromoCode] = useState('')
     const [loading, setLoading]     = useState<string | null>(null)
+    const [focus, setFocus] = useState<string | null>(null)
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return
+        const sp = new URLSearchParams(window.location.search)
+        setFocus(sp.get('focus'))
+    }, [])
 
     const { data, isLoading } = useQuery({
         queryKey: ['plans'],
@@ -34,6 +41,18 @@ export default function StorePage() {
         }
     }
 
+    async function resetHwid() {
+        setLoading('hwid')
+        try {
+            await api.post('/api/v1/store/hwid-reset')
+            toast.success('HWID reset purchased. Check your profile.')
+        } catch (err: any) {
+            toast.error(err?.response?.data?.error ?? 'Failed to reset HWID')
+        } finally {
+            setLoading(null)
+        }
+    }
+
     const plans = data ?? []
 
     return (
@@ -50,6 +69,28 @@ export default function StorePage() {
                 <Input placeholder="Promo code" value={promoCode} onChange={e => setPromoCode(e.target.value)} />
                 <Button variant="secondary" size="md" style={{ flexShrink: 0 }}>
                     <Tag size={12} /> Apply
+                </Button>
+            </div>
+
+            {/* Add-ons */}
+            <div style={{
+                borderRadius: '12px',
+                border: `1px solid ${focus === 'hwid_reset' ? 'rgba(34,197,94,0.4)' : '#1c1c1f'}`,
+                background: '#111113',
+                padding: '18px 20px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '16px',
+            }}>
+                <div>
+                    <div style={{ fontSize: '14px', fontWeight: 700 }}>HWID Reset</div>
+                    <div style={{ fontSize: '12px', color: '#71717a', marginTop: '4px' }}>
+                        Reset your HWID lock and relink to a new PC.
+                    </div>
+                </div>
+                <Button loading={loading === 'hwid'} onClick={resetHwid} style={{ gap: '8px' }}>
+                    <RotateCcw size={14} /> Reset
                 </Button>
             </div>
 
