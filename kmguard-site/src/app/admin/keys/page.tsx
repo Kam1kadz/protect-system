@@ -14,8 +14,9 @@ import type { LoaderKey, Plan } from '@/types'
 
 export default function AdminKeysPage() {
     const qc = useQueryClient()
-    const [planId, setPlanId]   = useState('')
-    const [count, setCount]     = useState(1)
+    const [planId, setPlanId]       = useState('')
+    const [count, setCount]         = useState(1)
+    const [duration, setDuration]   = useState(30)
 
     const { data: keys } = useQuery<LoaderKey[]>({
         queryKey: ['admin-keys'],
@@ -28,7 +29,7 @@ export default function AdminKeysPage() {
     })
 
     const gen = useMutation({
-        mutationFn: () => adminApi.genKeys({ plan_id: planId, count }),
+        mutationFn: () => adminApi.genKeys({ plan_id: planId, count, duration_days: duration }),
         onSuccess:  () => { qc.invalidateQueries({ queryKey: ['admin-keys'] }); toast.success(`${count} keys generated`) },
         onError:    () => toast.error('Failed to generate keys'),
     })
@@ -65,6 +66,15 @@ export default function AdminKeysPage() {
                         className="w-24"
                     />
                 </div>
+                <div className="flex flex-col gap-1">
+                    <label className="text-xs text-[--muted]">Duration (days)</label>
+                    <Input
+                        type="number" min={1}
+                        value={duration}
+                        onChange={e => setDuration(Number(e.target.value))}
+                        className="w-24"
+                    />
+                </div>
                 <Button onClick={() => gen.mutate()} disabled={!planId} loading={gen.isPending}>
                     Generate
                 </Button>
@@ -72,13 +82,14 @@ export default function AdminKeysPage() {
 
             <Table>
                 <Thead>
-                    <Th>Key</Th><Th>Plan</Th><Th>Used</Th><Th>Used By</Th><Th>Created</Th><Th></Th>
+                    <Th>Key</Th><Th>Plan</Th><Th>Duration</Th><Th>Used</Th><Th>Used By</Th><Th>Created</Th><Th></Th>
                 </Thead>
                 <Tbody>
                     {(keys ?? []).map(k => (
                         <Tr key={k.id}>
                             <Td className="font-mono text-xs">{k.key_value}</Td>
                             <Td>{k.plan_name}</Td>
+                            <Td>{k.duration_days} days</Td>
                             <Td><Badge value={k.is_used ? 'active' : 'pending'} /></Td>
                             <Td>{k.used_by ?? '—'}</Td>
                             <Td>{formatDate(k.created_at)}</Td>

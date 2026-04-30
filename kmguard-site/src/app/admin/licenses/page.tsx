@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
-import { ShieldOff, Search, Copy, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ShieldOff, Search, Copy, ChevronLeft, ChevronRight, Calendar, Unlock, X } from 'lucide-react'
 
 type LicRow = {
     id: string; username: string; plan_name: string; status: string
@@ -17,16 +17,31 @@ export default function AdminLicensesPage() {
     const qc = useQueryClient()
     const [page, setPage] = useState(1)
     const [search, setSearch] = useState('')
+    const [editingExp, setEditingExp] = useState<{id: string, date: string} | null>(null)
 
     const { data, isLoading } = useQuery<LicRow[]>({
         queryKey: ['admin-licenses', page],
         queryFn: () => adminApi.licenses(page).then(r => r.data.licenses ?? []),
     })
 
+    const invalidate = () => qc.invalidateQueries({ queryKey: ['admin-licenses'] })
+
     const revoke = useMutation({
         mutationFn: (id: string) => adminApi.revokeLic(id),
-        onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-licenses'] }); toast.success('License revoked') },
+        onSuccess: () => { invalidate(); toast.success('License revoked') },
         onError: () => toast.error('Failed to revoke'),
+    })
+
+    const unlock = useMutation({
+        mutationFn: (id: string) => adminApi.unlockLic(id),
+        onSuccess: () => { invalidate(); toast.success('License unlocked') },
+        onError: () => toast.error('Failed to unlock'),
+    })
+
+    const updateExpiry = useMutation({
+        mutationFn: ({id, date}: {id: string, date: string}) => adminApi.updateLicExpiry(id, date),
+        onSuccess: () => { invalidate(); setEditingExp(null); toast.success('Expiry updated') },
+        onError: () => toast.error('Failed to update expiry'),
     })
 
     const filtered = (data ?? []).filter(l =>
@@ -78,7 +93,27 @@ export default function AdminLicensesPage() {
                                     <td style={{ padding: '12px 14px', fontSize: '13px', fontWeight: 600, color: '#fafafa' }}>{l.username}</td>
                                     <td style={{ padding: '12px 14px', fontSize: '13px', color: '#a1a1aa' }}>{l.plan_name}</td>
                                     <td style={{ padding: '12px 14px' }}><Badge value={l.status} /></td>
-                                    <td style={{ padding: '12px 14px', fontSize: '12px', color: '#71717a' }}>{formatDate(l.expires_at)}</td>
+                                    <td style={{ padding: '12px 14px', fontSize: '12px', color: '#71717a' }}>
+                                        {editingExp?.id === l.id ? (
+                                            <div style={{ display: 'flex', gap: '4px' }}>
+                                                <input
+                                                    type="datetime-local"
+                                                    value={editingExp.date.slice(0,16)}
+                                                    onChange={e => setEditingExp({...editingExp, date: e.target.value})}
+                                                    style={{ background: '#1c1c1f', border: '1px solid #27272a', borderRadius: '4px', color: '#fafafa', fontSize: '11px', padding: '2px 4px' }}
+                                                />
+                                                <button onClick={() => updateExpiry.mutate({id: l.id, date: new Date(editingExp.date).toISOString()})} style={{ color: '#22c55e' }}><Calendar size={12}/></button>
+                                                <button onClick={() => setEditingExp(null)} style={{ color: '#ef4444' }}><X size={12}/></button>
+                                            </div>
+                                        ) : (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                {formatDate(l.expires_at)}
+                                                <button onClick={() => setEditingExp({id: l.id, date: l.expires_at})} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#52525b' }}>
+                                                    <Calendar size={12} />
+                                                </button>
+                                            </div>
+                                        )}
+                                    </td>
                                     <td style={{ padding: '12px 14px' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                             <span style={{ fontFamily: 'monospace', fontSize: '11px', color: '#52525b' }}>{l.license_key.slice(0, 16)}…</span>
@@ -90,17 +125,29 @@ export default function AdminLicensesPage() {
                                     </td>
                                     <td style={{ padding: '12px 14px', fontSize: '12px', color: '#71717a' }}>{formatDate(l.created_at)}</td>
                                     <td style={{ padding: '12px 14px' }}>
-                                        {l.status !== 'banned' && (
-                                            <button onClick={() => { if (confirm(`Revoke license for ${l.username}?`)) revoke.mutate(l.id) }}
-                                                style={{
-                                                    display: 'flex', alignItems: 'center', gap: '4px',
-                                                    background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
-                                                    borderRadius: '6px', padding: '5px 10px', cursor: 'pointer',
-                                                    color: '#ef4444', fontSize: '12px', fontWeight: 500,
-                                                }}>
-                                                <ShieldOff size={12} /> Revoke
-                                            </button>
-                                        )}
+                                        <div style={{ display: 'flex', gap: '6px' }}>
+                                            {l.status === 'banned' ? (
+                                                <button onClick={() => unlock.mutate(l.id)}
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', gap: '4px',
+                                                        background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)',
+                                                        borderRadius: '6px', padding: '5px 10px', cursor: 'pointer',
+                                                        color: '#22c55e', fontSize: '12px', fontWeight: 500,
+                                                    }}>
+                                                    <Unlock size={12} /> Unlock
+                                                </button>
+                                            ) : (
+                                                <button onClick={() => { if (confirm(`Revoke license for ${l.username}?`)) revoke.mutate(l.id) }}
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', gap: '4px',
+                                                        background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+                                                        borderRadius: '6px', padding: '5px 10px', cursor: 'pointer',
+                                                        color: '#ef4444', fontSize: '12px', fontWeight: 500,
+                                                    }}>
+                                                    <ShieldOff size={12} /> Revoke
+                                                </button>
+                                            )}
+                                        </div>
                                     </td>
                                 </tr>
                             ))}

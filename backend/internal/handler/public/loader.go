@@ -50,7 +50,7 @@ func (h *LoaderHandler) Auth(c *fiber.Ctx) error {
 	if body.LicenseKey == "" || body.HWID == "" || body.Challenge == "" || body.Response == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "missing fields"})
 	}
-	if body.MCVersion != string(model.MCVersion1165) && body.MCVersion != string(model.MCVersion1214) {
+	if body.MCVersion != string(model.MCVersion1165) && body.MCVersion != string(model.MCVersion1194) {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "unsupported mc_version"})
 	}
 

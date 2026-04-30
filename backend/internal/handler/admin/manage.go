@@ -381,10 +381,11 @@ func (h *ManageHandler) CreatePlan(c *fiber.Ctx) error {
 	s, _ := safeSchema(schema)
 
 	var body struct {
-		Name        string `json:"name"`
-		DisplayName string `json:"display_name"`
-		SortOrder   int    `json:"sort_order"`
-		ProductType string `json:"product_type"`
+		Name          string `json:"name"`
+		DisplayName   string `json:"display_name"`
+		SortOrder     int    `json:"sort_order"`
+		ProductType   string `json:"product_type"`
+		ConfigFileKey string `json:"config_file_key"`
 	}
 	if err := c.BodyParser(&body); err != nil || body.Name == "" || body.DisplayName == "" {
 		return c.Status(400).JSON(fiber.Map{"error": "name and display_name required"})
@@ -395,9 +396,9 @@ func (h *ManageHandler) CreatePlan(c *fiber.Ctx) error {
 
 	var id string
 	err := h.db.QueryRow(c.Context(), fmt.Sprintf(
-		`INSERT INTO %s.subscription_plans (id, name, display_name, sort_order, is_active, product_type)
-		 VALUES (gen_random_uuid(), $1, $2, $3, true, $4) RETURNING id`, s),
-		body.Name, body.DisplayName, body.SortOrder, body.ProductType,
+		`INSERT INTO %s.subscription_plans (id, name, display_name, sort_order, is_active, product_type, config_file_key)
+		 VALUES (gen_random_uuid(), $1, $2, $3, true, $4, $5) RETURNING id`, s),
+		body.Name, body.DisplayName, body.SortOrder, body.ProductType, body.ConfigFileKey,
 	).Scan(&id)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "db error: " + err.Error()})
@@ -411,10 +412,11 @@ func (h *ManageHandler) UpdatePlan(c *fiber.Ctx) error {
 	planID := c.Params("id")
 
 	var body struct {
-		DisplayName string `json:"display_name"`
-		IsActive    *bool  `json:"is_active"`
-		SortOrder   *int   `json:"sort_order"`
-		ProductType string `json:"product_type"`
+		DisplayName   string `json:"display_name"`
+		IsActive      *bool  `json:"is_active"`
+		SortOrder     *int   `json:"sort_order"`
+		ProductType   string `json:"product_type"`
+		ConfigFileKey string `json:"config_file_key"`
 	}
 	if err := c.BodyParser(&body); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "bad request"})
@@ -422,13 +424,14 @@ func (h *ManageHandler) UpdatePlan(c *fiber.Ctx) error {
 
 	_, err := h.db.Exec(c.Context(), fmt.Sprintf(
 		`UPDATE %s.subscription_plans
-		 SET display_name  = COALESCE(NULLIF($1,''), display_name),
-		     is_active     = COALESCE($2, is_active),
-		     sort_order    = COALESCE($3, sort_order),
-		     product_type  = COALESCE(NULLIF($4,''), product_type),
-		     updated_at    = NOW()
-		 WHERE id = $5`, s),
-		body.DisplayName, body.IsActive, body.SortOrder, body.ProductType, planID)
+		 SET display_name    = COALESCE(NULLIF($1,''), display_name),
+		     is_active       = COALESCE($2, is_active),
+		     sort_order      = COALESCE($3, sort_order),
+		     product_type    = COALESCE(NULLIF($4,''), product_type),
+		     config_file_key = COALESCE(NULLIF($5,''), config_file_key),
+		     updated_at      = NOW()
+		 WHERE id = $6`, s),
+		body.DisplayName, body.IsActive, body.SortOrder, body.ProductType, body.ConfigFileKey, planID)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "db error"})
 	}

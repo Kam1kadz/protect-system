@@ -278,7 +278,9 @@ export default function ProfilePage() {
                             <div style={{ fontWeight: 600, fontSize: '14px' }}>Advanced Settings</div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', fontSize: '13px' }}>
-                            <span style={{ color: '#71717a' }}>HWID</span>
+                            <a href="/kmguard/store" style={{ color: '#71717a', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                HWID <Badge value="reset" variant="secondary" />
+                            </a>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#a1a1aa' }}>{hwid ?? '—'}</span>
                                 {hwid && (
@@ -333,7 +335,7 @@ export default function ProfilePage() {
                                     }}
                                 >
                                     <option value="">Select version…</option>
-                                    {licenses.map(l => (
+                                    {licenses.filter(l => l.status === 'active').map(l => (
                                         <option key={l.id} value={l.plan_name}>
                                             {l.plan_display_name ?? l.plan_name}
                                         </option>

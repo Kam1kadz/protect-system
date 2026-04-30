@@ -143,13 +143,19 @@ export const adminApi = {
     revokeLic: (id: string) =>
         api.delete(`/api/v1/admin/licenses/${id}`),
 
+    unlockLic: (id: string) =>
+        api.post(`/api/v1/admin/licenses/${id}/unlock`),
+
+    updateLicExpiry: (id: string, expires_at: string) =>
+        api.patch(`/api/v1/admin/licenses/${id}/expiry`, { expires_at }),
+
     plans: () =>
         api.get('/api/v1/admin/plans'),
 
-    createPlan: (data: { name: string; display_name: string; sort_order?: number }) =>
+    createPlan: (data: { name: string; display_name: string; sort_order?: number; product_type?: string }) =>
         api.post('/api/v1/admin/plans', data),
 
-    updatePlan: (id: string, data: { display_name?: string; is_active?: boolean; sort_order?: number }) =>
+    updatePlan: (id: string, data: { display_name?: string; is_active?: boolean; sort_order?: number; product_type?: string; config_file_key?: string }) =>
         api.patch(`/api/v1/admin/plans/${id}`, data),
 
     deletePlan: (id: string) =>
@@ -164,7 +170,7 @@ export const adminApi = {
     keys: () =>
         api.get('/api/v1/admin/keys'),
 
-    genKeys: (data: { plan_id: string; tier_id?: string; count: number }) =>
+    genKeys: (data: { plan_id: string; tier_id?: string; count: number; duration_days?: number }) =>
         api.post('/api/v1/admin/keys', data),
 
     deleteKey: (id: string) =>

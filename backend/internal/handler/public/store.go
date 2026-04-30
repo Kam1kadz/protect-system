@@ -75,45 +75,57 @@ func (h *StoreHandler) Activate(c *fiber.Ctx) error {
 
 	var body struct {
 		Key       string `json:"key"`
+		TierID    string `json:"tier_id"`
 		PromoCode string `json:"promo_code"`
 	}
-	if err := c.BodyParser(&body); err != nil || body.Key == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "key required"})
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "bad request"})
 	}
 
-	var keyID, planID string
+	if body.Key == "" && body.TierID == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "key or tier_id required"})
+	}
+
+	var planID string
 	var tierID *string
-	var isUsed bool
+	var keyID *string
+	var durationDays int = 30
 
-	err := h.db.QueryRow(c.Context(), fmt.Sprintf(
-		`SELECT id, plan_id, tier_id, is_used
-		 FROM %s.loader_keys WHERE key_value = $1`, s),
-		body.Key,
-	).Scan(&keyID, &planID, &tierID, &isUsed)
+	if body.Key != "" {
+		var isUsed bool
+		var dDays *int
+		err := h.db.QueryRow(c.Context(), fmt.Sprintf(
+			`SELECT id, plan_id, tier_id, is_used, duration_days
+			 FROM %s.loader_keys WHERE key_value = $1`, s),
+			body.Key,
+		).Scan(&keyID, &planID, &tierID, &isUsed, &dDays)
 
-	if err != nil {
-		return c.Status(404).JSON(fiber.Map{"error": "invalid key"})
-	}
-	if isUsed {
-		return c.Status(400).JSON(fiber.Map{"error": "key already used"})
-	}
-
-	durationDays := 30
-	if tierID != nil {
-		_ = h.db.QueryRow(c.Context(), fmt.Sprintf(
-			`SELECT duration_days FROM %s.plan_tiers WHERE id = $1`, s),
-			*tierID,
-		).Scan(&durationDays)
-	} else {
-		// попробуем взять duration_days прямо из ключа (если задано при генерации)
-		var keyDays *int
-		_ = h.db.QueryRow(c.Context(), fmt.Sprintf(
-			`SELECT duration_days FROM %s.loader_keys WHERE id = $1`, s), keyID,
-		).Scan(&keyDays)
-		if keyDays != nil && *keyDays > 0 {
-			durationDays = *keyDays
+		if err != nil {
+			return c.Status(404).JSON(fiber.Map{"error": "invalid key"})
 		}
+		if dDays != nil {
+			durationDays = *dDays
+		}
+		if isUsed {
+			return c.Status(400).JSON(fiber.Map{"error": "key already used"})
+		}
+	} else {
+		err := h.db.QueryRow(c.Context(), fmt.Sprintf(
+			`SELECT plan_id, duration_days FROM %s.plan_tiers WHERE id = $1`, s),
+			body.TierID,
+		).Scan(&planID, &durationDays)
+		if err != nil {
+			return c.Status(404).JSON(fiber.Map{"error": "invalid tier"})
+		}
+		tierID = &body.TierID
 	}
+
+	// Получаем тип продукта
+	var productType string
+	_ = h.db.QueryRow(c.Context(), fmt.Sprintf(
+		`SELECT product_type FROM %s.subscription_plans WHERE id = $1`, s),
+		planID,
+	).Scan(&productType)
 
 	var promoID *string
 	if body.PromoCode != "" {
@@ -158,74 +170,90 @@ func (h *StoreHandler) Activate(c *fiber.Ctx) error {
 		}
 	}
 
-	// Проверяем: есть ли уже активная незаблокированная лицензия на этот план?
-	var existingLicID string
-	var existingExpires time.Time
-	existingErr := h.db.QueryRow(c.Context(), fmt.Sprintf(
-		`SELECT id, expires_at FROM %s.licenses
-		 WHERE user_id = $1 AND plan_id = $2
-		   AND status NOT IN ('banned')
-		 ORDER BY expires_at DESC LIMIT 1`, s),
-		userID, planID,
-	).Scan(&existingLicID, &existingExpires)
-
 	var licenseID string
 	var licKey string
 	var finalExpires time.Time
 
-	if existingErr == nil && existingLicID != "" {
-		// Расширяем существующую подписку
-		base := existingExpires
-		if base.Before(time.Now()) {
-			base = time.Now()
-		}
-		finalExpires = base.AddDate(0, 0, durationDays)
-		_, err = h.db.Exec(c.Context(), fmt.Sprintf(
-			`UPDATE %s.licenses SET expires_at = $1, status = 'active' WHERE id = $2`, s),
-			finalExpires, existingLicID,
+	if productType == "hwid_reset" {
+		_, errExec := h.db.Exec(c.Context(), fmt.Sprintf(
+			`UPDATE %s.users SET hwid = NULL, hwid_locked_at = NULL WHERE id = $1`, s),
+			userID,
 		)
-		if err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": "failed to extend license"})
+		if errExec != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "failed to reset hwid"})
 		}
-		licenseID = existingLicID
-		// получаем ключ существующей лицензии
-		_ = h.db.QueryRow(c.Context(), fmt.Sprintf(
-			`SELECT COALESCE(license_key,'') FROM %s.licenses WHERE id = $1`, s), existingLicID,
-		).Scan(&licKey)
 	} else {
-		// Создаём новую лицензию
-		var newKey, secretKey string
-		newKey, _ = crypto.RandomHex(16)
-		secretKey, _ = crypto.RandomHex(32)
-		finalExpires = time.Now().AddDate(0, 0, durationDays)
-		licKey = newKey
+		// Проверяем: есть ли уже активная незаблокированная лицензия на этот план?
+		var existingLicID string
+		var existingExpires time.Time
+		existingErr := h.db.QueryRow(c.Context(), fmt.Sprintf(
+			`SELECT id, expires_at FROM %s.licenses
+			 WHERE user_id = $1 AND plan_id = $2
+			   AND status NOT IN ('banned')
+			 ORDER BY expires_at DESC LIMIT 1`, s),
+			userID, planID,
+		).Scan(&existingLicID, &existingExpires)
 
-		err = h.db.QueryRow(c.Context(), fmt.Sprintf(
-			`INSERT INTO %s.licenses
-			 (user_id, plan_id, tier_id, license_key, secret_key, expires_at)
-			 VALUES ($1, $2, $3, $4, $5, $6)
-			 RETURNING id`, s),
-			userID, planID, tierID, newKey, secretKey, finalExpires,
-		).Scan(&licenseID)
+		if existingErr == nil && existingLicID != "" {
+			// Расширяем существующую подписку
+			base := existingExpires
+			if base.Before(time.Now()) {
+				base = time.Now()
+			}
+			finalExpires = base.AddDate(0, 0, durationDays)
+			_, errExec := h.db.Exec(c.Context(), fmt.Sprintf(
+				`UPDATE %s.licenses SET expires_at = $1, status = 'active' WHERE id = $2`, s),
+				finalExpires, existingLicID,
+			)
+			if errExec != nil {
+				return c.Status(500).JSON(fiber.Map{"error": "failed to extend license"})
+			}
+			licenseID = existingLicID
+			// получаем ключ существующей лицензии
+			_ = h.db.QueryRow(c.Context(), fmt.Sprintf(
+				`SELECT COALESCE(license_key,'') FROM %s.licenses WHERE id = $1`, s), existingLicID,
+			).Scan(&licKey)
+		} else {
+			// Создаём новую лицензию
+			var newKey, secretKey string
+			newKey, _ = crypto.RandomHex(16)
+			secretKey, _ = crypto.RandomHex(32)
+			finalExpires = time.Now().AddDate(0, 0, durationDays)
+			licKey = newKey
 
-		if err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": "failed to create license: " + err.Error()})
+			errScan := h.db.QueryRow(c.Context(), fmt.Sprintf(
+				`INSERT INTO %s.licenses
+				 (user_id, plan_id, tier_id, license_key, secret_key, expires_at)
+				 VALUES ($1, $2, $3, $4, $5, $6)
+				 RETURNING id`, s),
+				userID, planID, tierID, newKey, secretKey, finalExpires,
+			).Scan(&licenseID)
+
+			if errScan != nil {
+				return c.Status(500).JSON(fiber.Map{"error": "failed to create license: " + errScan.Error()})
+			}
 		}
 	}
 
-	_, _ = h.db.Exec(c.Context(), fmt.Sprintf(
-		`UPDATE %s.loader_keys
-		 SET is_used = true, used_by = $1, used_at = NOW()
-		 WHERE id = $2`, s),
-		userID, keyID)
+	if keyID != nil {
+		_, _ = h.db.Exec(c.Context(), fmt.Sprintf(
+			`UPDATE %s.loader_keys
+			 SET is_used = true, used_by = $1, used_at = NOW()
+			 WHERE id = $2`, s),
+			userID, *keyID)
+	}
 
+	pIDStr := "null"
+	if promoID != nil {
+		pIDStr = "\"" + *promoID + "\""
+	}
 	_, _ = h.db.Exec(c.Context(), fmt.Sprintf(
 		`INSERT INTO %s.audit_log (user_id, event_type, severity, ip_address, payload)
 		 VALUES ($1, 'key_activated', 'info', $2, $3)`, s),
 		userID,
 		c.IP(),
-		fmt.Sprintf(`{"license_id":"%s","plan_id":"%s","promo_id":"%v"}`,
-			licenseID, planID, promoID),
+		fmt.Sprintf(`{"license_id":"%s","plan_id":"%s","promo_id":%s}`,
+			licenseID, planID, pIDStr),
 	)
 
 	return c.Status(201).JSON(fiber.Map{

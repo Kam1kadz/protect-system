@@ -48,9 +48,12 @@ export default function AdminPromoPage() {
 
     return (
         <div className="flex flex-col gap-6">
-            <h1 className="text-2xl font-bold">Promo Codes</h1>
+            <div className="flex items-center justify-between">
+                <h1 className="text-2xl font-bold">Promo Codes</h1>
+                <Badge value={(promos ?? []).length + " Active"} variant="outline" />
+            </div>
 
-            <Card>
+            <Card className="border-[--border] bg-[#0d0d0f]">
                 <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
                     <div className="flex flex-col gap-1">
                         <label className="text-xs text-[--muted]">Code *</label>
@@ -82,30 +85,32 @@ export default function AdminPromoPage() {
                 </Button>
             </Card>
 
-            <Table>
-                <Thead>
-                    <Th>Code</Th><Th>Partner</Th><Th>Discount</Th><Th>Partner%</Th>
-                    <Th>Uses</Th><Th>Active</Th><Th>Expires</Th><Th></Th>
-                </Thead>
-                <Tbody>
-                    {(promos ?? []).map(p => (
-                        <Tr key={p.id}>
-                            <Td className="font-mono font-bold text-white">{p.code}</Td>
-                            <Td>{p.partner ?? '—'}</Td>
-                            <Td>{p.discount_pct}%</Td>
-                            <Td>{p.partner_pct}%</Td>
-                            <Td>{p.uses_total}{p.uses_max ? `/${p.uses_max}` : ''}</Td>
-                            <Td><Badge value={p.is_active ? 'active' : 'expired'} /></Td>
-                            <Td>{p.expires_at ? formatDate(p.expires_at) : '∞'}</Td>
-                            <Td>
-                                <Button size="icon" variant="ghost" onClick={() => del.mutate(p.id)}>
-                                    <Trash2 size={14} className="text-red-400"/>
-                                </Button>
-                            </Td>
-                        </Tr>
-                    ))}
-                </Tbody>
-            </Table>
+            <div className="rounded-xl border border-[--border] bg-[#0d0d0f] overflow-hidden">
+                <Table>
+                    <Thead>
+                        <Th>Code</Th><Th>Partner</Th><Th>Discount</Th><Th>Partner%</Th>
+                        <Th>Uses</Th><Th>Active</Th><Th>Expires</Th><Th></Th>
+                    </Thead>
+                    <Tbody>
+                        {(promos ?? []).map(p => (
+                            <Tr key={p.id} className="hover:bg-[#111113] transition-colors">
+                                <Td className="font-mono font-bold text-emerald-400">{p.code}</Td>
+                                <Td className="text-sm text-gray-400">{p.partner ?? '—'}</Td>
+                                <Td className="text-sm font-semibold">{p.discount_pct}%</Td>
+                                <Td className="text-sm text-gray-500">{p.partner_pct}%</Td>
+                                <Td className="text-sm">{p.uses_total}{p.uses_max ? ` / ${p.uses_max}` : ''}</Td>
+                                <Td><Badge value={p.is_active ? 'active' : 'expired'} /></Td>
+                                <Td className="text-xs text-gray-500">{p.expires_at ? formatDate(p.expires_at) : '∞'}</Td>
+                                <Td>
+                                    <Button size="icon" variant="ghost" onClick={() => del.mutate(p.id)} className="hover:bg-red-500/10">
+                                        <Trash2 size={14} className="text-red-500/70 hover:text-red-500"/>
+                                    </Button>
+                                </Td>
+                            </Tr>
+                        ))}
+                    </Tbody>
+                </Table>
+            </div>
         </div>
     )
 }

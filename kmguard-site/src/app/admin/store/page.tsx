@@ -8,18 +8,18 @@ import { toast } from 'sonner'
 import { Plus, Trash2, Edit2, ChevronDown, ChevronUp, Check, X } from 'lucide-react'
 
 type Tier = { id?: string; duration_days: number; price: number; currency: string }
-type Plan = { id: string; name: string; display_name: string; is_active: boolean; sort_order: number; tiers: Tier[] }
+type Plan = { id: string; name: string; display_name: string; is_active: boolean; sort_order: number; product_type: string; config_file_key: string; tiers: Tier[] }
 
 const EMPTY_TIER: Tier = { duration_days: 30, price: 9.99, currency: 'USD' }
 
 export default function AdminStorePage() {
     const qc = useQueryClient()
     const [showNewPlan, setShowNewPlan] = useState(false)
-    const [newPlan, setNewPlan] = useState({ name: '', display_name: '', sort_order: 0 })
+    const [newPlan, setNewPlan] = useState({ name: '', display_name: '', sort_order: 0, product_type: 'subscription' })
     const [expandedPlan, setExpandedPlan] = useState<string | null>(null)
     const [newTier, setNewTier] = useState<Record<string, Tier>>({})
     const [editingPlan, setEditingPlan] = useState<string | null>(null)
-    const [editVals, setEditVals] = useState<{ display_name: string; is_active: boolean }>({ display_name: '', is_active: true })
+    const [editVals, setEditVals] = useState<{ display_name: string; is_active: boolean; product_type: string; config_file_key: string }>({ display_name: '', is_active: true, product_type: 'subscription', config_file_key: '' })
 
     const { data: plans, isLoading } = useQuery<Plan[]>({
         queryKey: ['admin-plans'],
@@ -75,7 +75,7 @@ export default function AdminStorePage() {
             {showNewPlan && (
                 <div style={{ background: '#0d0d0f', borderRadius: '12px', border: '1px solid #27272a', padding: '18px' }}>
                     <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '14px' }}>Create Plan</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '10px', marginBottom: '14px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: '10px', marginBottom: '14px' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                             <label style={{ fontSize: '11px', color: '#71717a' }}>Internal slug</label>
                             <input value={newPlan.name} onChange={e => setNewPlan(p => ({ ...p, name: e.target.value.toLowerCase().replace(/\s/g, '_') }))}
@@ -89,9 +89,18 @@ export default function AdminStorePage() {
                                 style={{ background: '#1c1c1f', border: '1px solid #27272a', borderRadius: '8px', color: '#fafafa', fontSize: '13px', padding: '8px 10px', outline: 'none' }} />
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <label style={{ fontSize: '11px', color: '#71717a' }}>Sort order</label>
+                            <label style={{ fontSize: '11px', color: '#71717a' }}>Type</label>
+                            <select value={newPlan.product_type} onChange={e => setNewPlan(p => ({ ...p, product_type: e.target.value }))}
+                                style={{ background: '#1c1c1f', border: '1px solid #27272a', borderRadius: '8px', color: '#fafafa', fontSize: '13px', padding: '8px 10px', outline: 'none' }}>
+                                <option value="subscription">Subscription</option>
+                                <option value="hwid_reset">HWID Reset</option>
+                                <option value="config">Config</option>
+                            </select>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <label style={{ fontSize: '11px', color: '#71717a' }}>Sort</label>
                             <input type="number" value={newPlan.sort_order} onChange={e => setNewPlan(p => ({ ...p, sort_order: +e.target.value }))}
-                                style={{ background: '#1c1c1f', border: '1px solid #27272a', borderRadius: '8px', color: '#fafafa', fontSize: '13px', padding: '8px 10px', outline: 'none', width: '70px' }} />
+                                style={{ background: '#1c1c1f', border: '1px solid #27272a', borderRadius: '8px', color: '#fafafa', fontSize: '13px', padding: '8px 10px', outline: 'none', width: '50px' }} />
                         </div>
                     </div>
                     <div style={{ display: 'flex', gap: '8px' }}>
@@ -113,14 +122,32 @@ export default function AdminStorePage() {
                 return (
                     <div key={plan.id} style={{ background: '#0d0d0f', borderRadius: '12px', border: '1px solid #1c1c1f', padding: '16px 20px' }}>
                         {/* Header */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: expanded ? '16px' : 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: (expanded || editing) ? '16px' : 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                 {editing ? (
-                                    <input value={editVals.display_name}
-                                        onChange={e => setEditVals(v => ({ ...v, display_name: e.target.value }))}
-                                        style={{ background: '#1c1c1f', border: '1px solid #27272a', borderRadius: '8px', color: '#fafafa', fontSize: '13px', padding: '6px 10px', outline: 'none', width: '160px' }} />
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                        <input value={editVals.display_name}
+                                            onChange={e => setEditVals(v => ({ ...v, display_name: e.target.value }))}
+                                            placeholder="Display name"
+                                            style={{ background: '#1c1c1f', border: '1px solid #27272a', borderRadius: '8px', color: '#fafafa', fontSize: '13px', padding: '6px 10px', outline: 'none', width: '160px' }} />
+                                        <select value={editVals.product_type} onChange={e => setEditVals(v => ({ ...v, product_type: e.target.value }))}
+                                            style={{ background: '#1c1c1f', border: '1px solid #27272a', borderRadius: '8px', color: '#fafafa', fontSize: '13px', padding: '6px 10px', outline: 'none' }}>
+                                            <option value="subscription">Subscription</option>
+                                            <option value="hwid_reset">HWID Reset</option>
+                                            <option value="config">Config</option>
+                                        </select>
+                                        {editVals.product_type === 'config' && (
+                                            <input value={editVals.config_file_key}
+                                                onChange={e => setEditVals(v => ({ ...v, config_file_key: e.target.value }))}
+                                                placeholder="Config key/URL"
+                                                style={{ background: '#1c1c1f', border: '1px solid #27272a', borderRadius: '8px', color: '#fafafa', fontSize: '13px', padding: '6px 10px', outline: 'none', width: '140px' }} />
+                                        )}
+                                    </div>
                                 ) : (
-                                    <span style={{ fontWeight: 600, fontSize: '14px' }}>{plan.display_name}</span>
+                                    <>
+                                        <span style={{ fontWeight: 600, fontSize: '14px' }}>{plan.display_name}</span>
+                                        <Badge value={plan.product_type} variant="outline" />
+                                    </>
                                 )}
                                 <span style={{ fontSize: '11px', color: '#3f3f46', fontFamily: 'monospace' }}>{plan.name}</span>
                                 <Badge value={plan.is_active ? 'active' : 'expired'} />
@@ -135,7 +162,7 @@ export default function AdminStorePage() {
                                         </Button>
                                     </>
                                 ) : (
-                                    <button onClick={() => { setEditingPlan(plan.id); setEditVals({ display_name: plan.display_name, is_active: plan.is_active }) }}
+                                    <button onClick={() => { setEditingPlan(plan.id); setEditVals({ display_name: plan.display_name, is_active: plan.is_active, product_type: plan.product_type || 'subscription', config_file_key: plan.config_file_key || '' }) }}
                                         style={{ background: '#1c1c1f', border: '1px solid #27272a', borderRadius: '6px', padding: '5px 8px', cursor: 'pointer', color: '#a1a1aa', display: 'flex', alignItems: 'center' }}>
                                         <Edit2 size={13} />
                                     </button>

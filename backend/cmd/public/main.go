@@ -183,6 +183,8 @@ func main() {
 	lics := adm.Group("/licenses")
 	lics.Get("/",       manageH.ListLicenses)
 	lics.Delete("/:id", manageH.RevokeLicense)
+	lics.Post("/:id/unlock", manageH.UnlockLicense)
+	lics.Patch("/:id/expiry", manageH.UpdateLicenseExpiry)
 
 	plans := adm.Group("/plans")
 	plans.Get("/",                          manageH.ListPlans)
