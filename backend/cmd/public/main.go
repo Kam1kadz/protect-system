@@ -58,6 +58,17 @@ func main() {
 	licenseRepo := repo.NewLicenseRepo(pool)
 	runtimeRepo := repo.NewRuntimeRepo(pool)
 
+	// Apply tenant migrations for all active tenants (keeps existing schemas up-to-date).
+	if tenants, err := tenantRepo.ListAll(context.Background()); err == nil {
+		for _, t := range tenants {
+			if err := db.RunTenantMigrations(cfg.DatabaseURL, t.Slug); err != nil {
+				log.Printf("tenant migrate warn slug=%s: %v", t.Slug, err)
+			}
+		}
+	} else {
+		log.Printf("tenant migrate warn: %v", err)
+	}
+
 	authSvc    := service.NewAuthService(userRepo, cfg)
 	loaderSvc  := service.NewLoaderService(licenseRepo, userRepo, redisClient, minioClient, cfg)
 	runtimeSvc := service.NewRuntimeService(runtimeRepo, userRepo, licenseRepo, cfg)

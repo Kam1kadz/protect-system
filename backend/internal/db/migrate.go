@@ -14,6 +14,9 @@ import (
 //go:embed migrations/public/*.sql
 var publicFS embed.FS
 
+//go:embed migrations/tenant/*.sql
+var tenantFS embed.FS
+
 // normDSN strips any existing scheme and prepends pgx5://
 func normDSN(dsn string) string {
 	for _, prefix := range []string{"postgres://", "postgresql://", "pgx://", "pgx5://"} {
@@ -52,15 +55,17 @@ func RunTenantMigrations(dsn, slug string) error {
 		}
 	}
 
+	schema := "tenant_" + slug
+
 	// Add search_path and options to DSN
 	sep := "?"
 	if strings.Contains(dsn, "?") {
 		sep = "&"
 	}
 	// Use search_path param supported by pgx5 driver
-	tenantDSN := dsn + sep + "search_path=" + slug + ",public&options=-c%20search_path%3D" + slug + "%2Cpublic"
+	tenantDSN := dsn + sep + "search_path=" + schema + ",public&options=-c%20search_path%3D" + schema + "%2Cpublic"
 
-	src, err := iofs.New(publicFS, "migrations/public")
+	src, err := iofs.New(tenantFS, "migrations/tenant")
 	if err != nil {
 		return fmt.Errorf("tenant migrations source: %w", err)
 	}
