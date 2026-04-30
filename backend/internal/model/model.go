@@ -93,6 +93,7 @@ type MCVersion string
 const (
 	MCVersion1165 MCVersion = "1.16.5"
 	MCVersion1194 MCVersion = "1.19.4"
+	MCVersion1214 MCVersion = "1.21.4"
 )
 
 // ProductType — тип товара в магазине
