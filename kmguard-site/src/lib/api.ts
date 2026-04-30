@@ -1,6 +1,6 @@
 import axios, { AxiosInstance } from 'axios'
 
-const BASE      = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080').replace(/\/+$/, '')
+const BASE      = process.env.NEXT_PUBLIC_API_URL   ?? 'http://localhost:8080'
 const TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID ?? ''
 
 function getToken(): string | null {

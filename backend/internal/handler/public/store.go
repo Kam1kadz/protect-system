@@ -246,11 +246,11 @@ func (h *StoreHandler) Activate(c *fiber.Ctx) error {
 			base = time.Now()
 		}
 		finalExpires = base.AddDate(0, 0, durationDays)
-		_, errUpd := h.db.Exec(c.Context(), fmt.Sprintf(
+		_, err = h.db.Exec(c.Context(), fmt.Sprintf(
 			`UPDATE %s.licenses SET expires_at = $1, status = 'active' WHERE id = $2`, s),
 			finalExpires, existingLicID,
 		)
-		if errUpd != nil {
+		if err != nil {
 			return c.Status(500).JSON(fiber.Map{"error": "failed to extend license"})
 		}
 		licenseID = existingLicID
@@ -266,7 +266,7 @@ func (h *StoreHandler) Activate(c *fiber.Ctx) error {
 		finalExpires = time.Now().AddDate(0, 0, durationDays)
 		licKey = newKey
 
-		errIns := h.db.QueryRow(c.Context(), fmt.Sprintf(
+		err = h.db.QueryRow(c.Context(), fmt.Sprintf(
 			`INSERT INTO %s.licenses
 			 (user_id, plan_id, tier_id, license_key, secret_key, expires_at)
 			 VALUES ($1, $2, $3, $4, $5, $6)
@@ -274,8 +274,8 @@ func (h *StoreHandler) Activate(c *fiber.Ctx) error {
 			userID, planID, tierID, newKey, secretKey, finalExpires,
 		).Scan(&licenseID)
 
-		if errIns != nil {
-			return c.Status(500).JSON(fiber.Map{"error": "failed to create license: " + errIns.Error()})
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "failed to create license: " + err.Error()})
 		}
 	}
 
