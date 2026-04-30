@@ -4,7 +4,12 @@ SET search_path TO {{SCHEMA}};
 -- ── Enums ─────────────────────────────────────────────────────────────────────
 
 DO $$ BEGIN
-    CREATE TYPE user_role AS ENUM ('user', 'partner', 'support', 'admin');
+    CREATE TYPE user_role AS ENUM ('user', 'partner', 'support', 'admin', 'banned');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Add 'banned' to existing enums that were created without it
+DO $$ BEGIN
+    ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'banned';
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN

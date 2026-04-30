@@ -9,6 +9,10 @@ if [ ! -f deploy/.env ]; then
   echo "✓ .env создан из .env.codespaces"
 fi
 
+# Symlink so godotenv finds the file from any working directory
+ln -sf deploy/.env .env 2>/dev/null || true
+ln -sf ../deploy/.env backend/.env 2>/dev/null || true
+
 # ── 2. Поднимаем инфраструктуру (Postgres, Redis, MinIO) ──────────
 docker compose -f deploy/docker-compose.codespaces.yml up -d
 echo "✓ Инфраструктура поднята"
@@ -42,5 +46,5 @@ echo "  2. Запусти сайт:"
 echo "     cd kmguard-site && npm install && npm run dev"
 echo ""
 echo "  3. Создай тенанта:"
-echo "     bash deploy/scripts/create-tenant-local.sh arbuz \"Arbuz Client\""
+echo "     bash deploy/scripts/create-tenant-local.sh supreme \"Supreme Client\""
 echo "────────────────────────────────────────────────────────────"

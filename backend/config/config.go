@@ -41,7 +41,9 @@ type Config struct {
 }
 
 func Load() (*Config, error) {
-	_ = godotenv.Load()
+	_ = godotenv.Load()               // cwd/.env
+	_ = godotenv.Load("deploy/.env")  // project-root/deploy/.env
+	_ = godotenv.Load("../deploy/.env") // backend/../deploy/.env
 
 	masterHex := mustEnv("MASTER_KEY")
 	if len(masterHex) != 64 {
@@ -61,7 +63,7 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("JWT_REFRESH_TTL: %w", err)
 	}
 
-	drift, _ := strconv.ParseInt(getEnv("HMAC_TIMESTAMP_DRIFT", "30"), 10, 64)
+	drift, _ := strconv.ParseInt(getEnv("HMAC_DRIFT", "30"), 10, 64)
 	nonceTTL, _ := strconv.Atoi(getEnv("NONCE_TTL", "120"))
 
 	return &Config{
